@@ -55,10 +55,10 @@ export function userMessage(error: any, fallback = 'No fue posible completar la 
   const raw = Array.isArray(detail) ? detail.map((item: any) => item.msg).join('. ') : detail;
   if (!raw) return fallback;
   return String(raw)
-    .replaceAll('barrio_id', 'barrio')
-    .replaceAll('vereda_id', 'vereda')
-    .replaceAll('fuente_captura', 'fuente de captura')
-    .replaceAll('consentimiento_datos', 'autorización de tratamiento de datos')
-    .replaceAll('numero_documento', 'documento')
-    .replaceAll('_', ' ');
+    .replace(/barrio_id/g, 'barrio')
+    .replace(/vereda_id/g, 'vereda')
+    .replace(/fuente_captura/g, 'fuente de captura')
+    .replace(/consentimiento_datos/g, 'autorización de tratamiento de datos')
+    .replace(/numero_documento/g, 'documento')
+    .replace(/_/g, ' ');
 }
