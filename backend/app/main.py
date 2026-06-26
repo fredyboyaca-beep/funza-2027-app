@@ -157,6 +157,16 @@ def seed():
 @app.get("/health")
 def health(): return {"status":"ok", "app": settings.PROJECT_NAME}
 
+@app.get("/")
+def root():
+    return {
+        "status": "ok",
+        "app": settings.PROJECT_NAME,
+        "message": "Backend FUNZA 2027 operativo",
+        "health": "/health",
+        "docs": "/docs",
+    }
+
 @app.post("/auth/login", response_model=Token)
 def login(payload: Login, db: Session = Depends(get_db)):
     user = db.query(Usuario).filter_by(email=payload.email).first()
