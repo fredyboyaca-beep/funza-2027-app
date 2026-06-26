@@ -46,11 +46,11 @@ export function Dashboard() {
 
   const totals = citizens?.totales || {};
   const criticalZones = useMemo(
-    () => (intelligence?.zonas || []).filter((zone: any) => ['Zona crítica', 'Zona prioritaria', 'Zona en crecimiento'].includes(zone.nivel_prioridad_territorial)).slice(0, 6),
+    () => (intelligence?.zonas || []).filter((zone: any) => ['Crítica', 'Prioritaria', 'En crecimiento'].includes(zone.nivel_prioridad_territorial)).slice(0, 6),
     [intelligence],
   );
   const consolidatedZones = useMemo(
-    () => (intelligence?.zonas || []).filter((zone: any) => zone.nivel_prioridad_territorial === 'Zona consolidada').slice(0, 6),
+    () => (intelligence?.zonas || []).filter((zone: any) => zone.nivel_prioridad_territorial === 'Consolidada operativamente').slice(0, 6),
     [intelligence],
   );
 
@@ -85,7 +85,7 @@ export function Dashboard() {
               <Tooltip />
               <Bar dataKey="puntaje_prioridad" radius={[6, 6, 0, 0]}>
                 {(intelligence.zonas || []).slice(0, 10).map((entry: any) => (
-                  <Cell key={entry.zona} fill={entry.nivel_prioridad_territorial === 'Zona crítica' ? '#dc2626' : '#0f172a'} />
+                  <Cell key={entry.zona} fill={entry.nivel_prioridad_territorial === 'Crítica' ? '#dc2626' : '#0f172a'} />
                 ))}
               </Bar>
             </BarChart>
@@ -111,7 +111,7 @@ export function Dashboard() {
 
       <div className="grid gap-6 xl:grid-cols-3">
         <div className="card">
-          <h3 className="mb-4 flex items-center gap-2 font-semibold"><AlertTriangle size={18} /> Zonas críticas</h3>
+          <h3 className="mb-4 flex items-center gap-2 font-semibold"><AlertTriangle size={18} /> Zonas críticas operativas</h3>
           <div className="space-y-3">
             {(criticalZones.length ? criticalZones : (intelligence.zonas || []).slice(0, 4)).map((zone: any) => (
               <div key={`${zone.tipo}-${zone.zona}`} className="rounded-lg bg-rose-50 p-3">
@@ -124,7 +124,7 @@ export function Dashboard() {
         </div>
 
         <div className="card">
-          <h3 className="mb-4 flex items-center gap-2 font-semibold"><CheckCircle2 size={18} /> Zonas consolidadas</h3>
+          <h3 className="mb-4 flex items-center gap-2 font-semibold"><CheckCircle2 size={18} /> Zonas consolidadas operativamente</h3>
           <div className="space-y-3">
             {consolidatedZones.map((zone: any) => (
               <div key={`${zone.tipo}-${zone.zona}`} className="rounded-lg bg-emerald-50 p-3">
@@ -132,7 +132,7 @@ export function Dashboard() {
                 <p className="text-sm font-semibold text-emerald-700">{fmt.format(zone.apoyos_altos)} apoyos altos</p>
               </div>
             ))}
-            {!consolidatedZones.length && <p className="text-sm font-semibold text-slate-500">Aún no hay zonas consolidadas con los criterios actuales.</p>}
+            {!consolidatedZones.length && <p className="text-sm font-semibold text-slate-500">Aún no hay zonas consolidadas operativamente con los criterios actuales.</p>}
           </div>
         </div>
 

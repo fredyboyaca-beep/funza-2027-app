@@ -12,6 +12,7 @@ from app.services.analytics import simulate, electoral_summary
 from app.services.ai_assistant import recommend
 from app.services.citizen_indicators import build_citizen_operational_indicators
 from app.services.citizen_import import import_ciudadanos
+from app.services.demo_seed import delete_demo_dataset, demo_status, load_demo_dataset
 from app.services.official_electoral import electoral_history, sync_official_results
 from app.services.public_sources import public_problem_sources
 from app.services.territorial_intelligence import alerts as intelligence_alerts
@@ -206,6 +207,20 @@ def dashboard(db: Session = Depends(get_db)):
     total_votos = sum(e.total_votos for e in elecciones)
     participacion = round(total_votos / sum(e.censo_electoral for e in elecciones), 3) if elecciones and sum(e.censo_electoral for e in elecciones) else 0
     return {"kpis":{"poblacion_total":poblacion,"censo_electoral":censo,"barrios":len(barrios),"veredas":len(veredas),"participacion_historica":participacion,"abstencion_historica":round(1-participacion,3) if participacion else 0},"piramide":[{"grupo":"18-28","hombres":4800,"mujeres":5100},{"grupo":"29-59","hombres":10400,"mujeres":11200},{"grupo":"60+","hombres":3100,"mujeres":3700}],"crecimiento":[{"anio":2015,"poblacion":76000},{"anio":2019,"poblacion":83500},{"anio":2023,"poblacion":91000},{"anio":2027,"poblacion":98000}]}
+
+@app.get("/demo/estado")
+def demo_estado(db: Session = Depends(get_db)):
+    return demo_status(db)
+
+@app.post("/demo/cargar")
+def demo_cargar(db: Session = Depends(get_db)):
+    seed_territory_catalog(db)
+    db.commit()
+    return {"ok": True, "mensaje": "Datos DEMO cargados correctamente", **load_demo_dataset(db)}
+
+@app.delete("/demo/eliminar")
+def demo_eliminar(db: Session = Depends(get_db)):
+    return {"ok": True, "mensaje": "Datos DEMO eliminados correctamente", **delete_demo_dataset(db)}
 
 @app.post("/barrios")
 def add_barrio(p: BarrioIn, db: Session = Depends(get_db)):

@@ -119,7 +119,7 @@ function territoryFromIntelligence(zone: any): TerritoryZone {
     cobertura: zone.cobertura_territorial ?? zone.porcentaje_cobertura ?? zone.cobertura ?? 0,
     potencial: zone.potencial_electoral_estimado || zone.potencial || 0,
     lider_responsable: leaderText,
-    estado_estrategico: zone.nivel_prioridad_territorial || zone.clasificacion_territorial || 'Zona por conquistar',
+    estado_estrategico: zone.nivel_prioridad_territorial || zone.clasificacion_territorial || 'Por conquistar',
     puntaje_prioridad: zone.puntaje_prioridad || 0,
     severidad_promedio: zone.severidad_promedio || 0,
     recomendaciones: zone.recomendaciones || [],
@@ -144,7 +144,7 @@ function territoryFromGeo(zone: GeoZone): TerritoryZone {
     cobertura: 0,
     potencial: Math.round((zone.poblacion_estimada || 0) * 0.58),
     lider_responsable: 'Sin líder asignado',
-    estado_estrategico: 'Zona por conquistar',
+    estado_estrategico: 'Por conquistar',
     puntaje_prioridad: 0,
     severidad_promedio: 0,
     recomendaciones: ['Programar primer recorrido territorial y levantar necesidades comunitarias agregadas.'],
@@ -154,11 +154,10 @@ function territoryFromGeo(zone: GeoZone): TerritoryZone {
 
 function colorFor(zone: TerritoryZone, active: boolean) {
   if (active) return '#0f172a';
-  if (zone.estado_estrategico === 'Zona crítica') return '#dc2626';
-  if (zone.estado_estrategico === 'Zona prioritaria') return '#e11d48';
-  if (zone.estado_estrategico === 'Zona en crecimiento') return '#f59e0b';
-  if (zone.estado_estrategico === 'Zona favorable') return '#0f766e';
-  if (zone.estado_estrategico === 'Zona consolidada') return '#16a34a';
+  if (zone.estado_estrategico === 'Crítica') return '#dc2626';
+  if (zone.estado_estrategico === 'Prioritaria') return '#e11d48';
+  if (zone.estado_estrategico === 'En crecimiento') return '#f59e0b';
+  if (zone.estado_estrategico === 'Consolidada operativamente') return '#16a34a';
   if (zone.tipo === 'Vereda') return '#2563eb';
   return '#64748b';
 }
@@ -359,10 +358,10 @@ export function Mapa() {
               <option>Todos</option>
               <option>Con registros</option>
               <option>Sin registros</option>
-              <option>Zona crítica</option>
-              <option>Zona prioritaria</option>
-              <option>Zona en crecimiento</option>
-              <option>Zona consolidada</option>
+              <option>Crítica</option>
+              <option>Prioritaria</option>
+              <option>En crecimiento</option>
+              <option>Consolidada operativamente</option>
             </select>
           </div>
 
@@ -423,10 +422,10 @@ export function Mapa() {
           </div>
 
           <div className="mt-4 flex flex-wrap gap-4 text-xs font-black text-slate-600">
-            <span className="flex items-center gap-2"><i className="h-3 w-3 rounded-full bg-[#dc2626]" /> Zona crítica</span>
+            <span className="flex items-center gap-2"><i className="h-3 w-3 rounded-full bg-[#dc2626]" /> Crítica</span>
             <span className="flex items-center gap-2"><i className="h-3 w-3 rounded-full bg-[#e11d48]" /> Prioritaria</span>
             <span className="flex items-center gap-2"><i className="h-3 w-3 rounded-full bg-[#f59e0b]" /> En crecimiento</span>
-            <span className="flex items-center gap-2"><i className="h-3 w-3 rounded-full bg-[#16a34a]" /> Consolidada</span>
+            <span className="flex items-center gap-2"><i className="h-3 w-3 rounded-full bg-[#16a34a]" /> Consolidada operativamente</span>
             <span className="flex items-center gap-2"><i className="h-3 w-3 rounded-full bg-[#2563eb]" /> Vereda</span>
           </div>
 
@@ -507,6 +506,14 @@ export function Mapa() {
                 <p className="mt-1 text-sm font-bold text-slate-800">
                   {selected.recomendaciones[0] || 'Programar recorrido de diagnóstico, registrar hallazgos y actualizar captación territorial.'}
                 </p>
+              </div>
+              <div className="mt-4 rounded-lg bg-slate-50 p-4">
+                <p className="text-xs font-black uppercase text-slate-400">Razón de clasificación</p>
+                <div className="mt-2 space-y-1">
+                  {(selected.justificacion.length ? selected.justificacion : ['Clasificación basada en cobertura, apoyos agregados, interacciones y problemáticas registradas.']).map((reason) => (
+                    <p key={reason} className="text-sm font-semibold text-slate-700">{reason}</p>
+                  ))}
+                </div>
               </div>
             </div>
 

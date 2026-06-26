@@ -63,18 +63,22 @@ export function Ciudadanos() {
   const [file, setFile] = useState<File | null>(null);
   const [importResult, setImportResult] = useState<any>(null);
   const [error, setError] = useState('');
+  const [demoStatus, setDemoStatus] = useState<any>(null);
+  const [demoLoading, setDemoLoading] = useState(false);
 
   const load = async () => {
-    const [ciudadanosResponse, indicadoresResponse, barriosResponse, veredasResponse] = await Promise.all([
+    const [ciudadanosResponse, indicadoresResponse, barriosResponse, veredasResponse, demoResponse] = await Promise.all([
       api.get('/ciudadanos'),
       api.get('/ciudadanos/indicadores'),
       api.get('/barrios'),
       api.get('/veredas'),
+      api.get('/demo/estado'),
     ]);
     setCiudadanos(ciudadanosResponse.data);
     setIndicadores(indicadoresResponse.data);
     setBarrios(barriosResponse.data);
     setVeredas(veredasResponse.data);
+    setDemoStatus(demoResponse.data);
   };
 
   useEffect(() => {
@@ -120,6 +124,34 @@ export function Ciudadanos() {
     }
   }
 
+  async function loadDemo() {
+    setDemoLoading(true);
+    setError('');
+    try {
+      const response = await api.post('/demo/cargar');
+      setImportResult(response.data);
+      await load();
+    } catch (err: any) {
+      setError(userMessage(err, 'No se pudieron cargar los datos DEMO'));
+    } finally {
+      setDemoLoading(false);
+    }
+  }
+
+  async function clearDemo() {
+    setDemoLoading(true);
+    setError('');
+    try {
+      const response = await api.delete('/demo/eliminar');
+      setImportResult(response.data);
+      await load();
+    } catch (err: any) {
+      setError(userMessage(err, 'No se pudieron eliminar los datos DEMO'));
+    } finally {
+      setDemoLoading(false);
+    }
+  }
+
   const zoneById = useMemo(() => {
     const zones: Record<string, string> = {};
     barrios.forEach((item) => { zones[`b-${item.id}`] = item.nombre; });
@@ -137,10 +169,23 @@ export function Ciudadanos() {
             Gestión de contactos captados voluntariamente por la campaña. Requiere autorización de tratamiento y origen verificable.
           </p>
         </div>
-        <span className="rounded-full bg-amber-50 px-4 py-2 text-sm font-black text-amber-700">Proteccion de datos activa</span>
+        <div className="flex flex-wrap gap-2">
+          <button className="rounded-lg bg-slate-950 px-4 py-2 text-sm font-black text-white disabled:opacity-60" onClick={loadDemo} disabled={demoLoading}>
+            {demoLoading ? 'Procesando...' : 'Cargar datos DEMO'}
+          </button>
+          <button className="rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-black text-slate-700 disabled:opacity-60" onClick={clearDemo} disabled={demoLoading}>
+            Eliminar datos DEMO
+          </button>
+          <span className="rounded-full bg-amber-50 px-4 py-2 text-sm font-black text-amber-700">Proteccion de datos activa</span>
+        </div>
       </div>
 
       {error && <div className="rounded-lg bg-rose-50 p-4 text-sm font-bold text-rose-700">{error}</div>}
+      {demoStatus?.activo && (
+        <div className="rounded-lg border border-blue-100 bg-blue-50 p-4 text-sm font-bold text-blue-900">
+          Modo DEMO activo: {demoStatus.ciudadanos} ciudadanos ficticios, {demoStatus.interacciones} interacciones y {demoStatus.problematicas} problemáticas. No corresponde a datos reales.
+        </div>
+      )}
 
       <div className="grid gap-4 md:grid-cols-4">
         <div className="card"><p className="text-sm text-slate-500">Total captados</p><h3 className="text-3xl font-black">{totals.ciudadanos_captados || 0}</h3></div>
@@ -205,9 +250,12 @@ export function Ciudadanos() {
           {importResult && (
             <div className="rounded-lg border border-emerald-200 bg-emerald-50 p-4 text-sm font-semibold text-emerald-900">
               <p className="font-black">Carga procesada</p>
-              <p className="mt-1">Registros incorporados: {importResult.importados || 0}</p>
+              {importResult.mensaje && <p className="mt-1">{importResult.mensaje}</p>}
+              <p className="mt-1">Registros incorporados: {importResult.importados || importResult.ciudadanos || 0}</p>
               <p>Duplicados detectados: {importResult.duplicados || 0}</p>
               <p>Registros no incorporados: {(importResult.errores || []).length}</p>
+              {typeof importResult.interacciones === 'number' && <p>Interacciones DEMO: {importResult.interacciones}</p>}
+              {typeof importResult.problematicas === 'number' && <p>Problemáticas DEMO: {importResult.problematicas}</p>}
             </div>
           )}
         </div>

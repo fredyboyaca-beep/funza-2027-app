@@ -54,13 +54,12 @@ type InteligenciaData = {
 
 const fmt = new Intl.NumberFormat('es-CO');
 const priorityColors: Record<string, string> = {
-  'Zona crítica': '#dc2626',
-  'Zona prioritaria': '#e11d48',
-  'Zona en crecimiento': '#f59e0b',
-  'Zona favorable': '#0f766e',
+  'Crítica': '#dc2626',
+  'Prioritaria': '#e11d48',
+  'En crecimiento': '#f59e0b',
   'Baja prioridad': '#0f766e',
-  'Zona consolidada': '#16a34a',
-  'Zona por conquistar': '#64748b',
+  'Consolidada operativamente': '#16a34a',
+  'Por conquistar': '#64748b',
 };
 
 function Kpi({ title, value, icon: Icon, tone = 'slate' }: { title: string; value: string | number; icon: any; tone?: 'slate' | 'rose' | 'emerald' | 'amber' }) {

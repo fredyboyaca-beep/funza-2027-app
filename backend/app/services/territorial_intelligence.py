@@ -93,19 +93,23 @@ def _priority(row: dict[str, Any]) -> tuple[str, int, list[str]]:
         reasons.append("potencial electoral agregado alto")
 
     if row["ciudadanos_captados"] == 0 and row["interacciones"] == 0:
-        classification = "Zona por conquistar"
+        classification = "Por conquistar"
     elif row["severidad_promedio"] >= 4 and row["cobertura_territorial"] < 3:
-        classification = "Zona crítica"
+        classification = "Crítica"
+    elif row["ciudadanos_captados"] >= 50 and row["apoyos_altos"] >= (row["apoyos_medios"] + row["indecisos"] + row["rechazos_apoyos_bajos"]):
+        classification = "Consolidada operativamente"
+        reasons.append("alta captación relativa y apoyos altos dominan dentro de la base autorizada")
     elif row["cobertura_territorial"] >= 5 and row["apoyos_altos"] >= (row["apoyos_medios"] + row["indecisos"] + row["rechazos_apoyos_bajos"]):
-        classification = "Zona consolidada"
+        classification = "Consolidada operativamente"
+        reasons.append("cobertura operativa suficiente y apoyos altos dominan dentro de la base autorizada")
     elif score >= 55:
-        classification = "Zona prioritaria"
+        classification = "Prioritaria"
     elif score >= 30:
-        classification = "Zona en crecimiento"
+        classification = "En crecimiento"
     elif row["apoyos_altos"] + row["apoyos_medios"] > row["indecisos"] + row["rechazos_apoyos_bajos"]:
-        classification = "Zona favorable"
+        classification = "En crecimiento"
     else:
-        classification = "Zona por conquistar"
+        classification = "Por conquistar"
 
     return classification, score, reasons
 
@@ -236,7 +240,7 @@ def calculate_territorial_intelligence(db: Session) -> dict[str, Any]:
 
 
 def priority_zones(intelligence: dict[str, Any]) -> list[dict[str, Any]]:
-    priority_names = {"Zona crítica", "Zona prioritaria", "Zona en crecimiento", "Zona por conquistar"}
+    priority_names = {"Crítica", "Prioritaria", "En crecimiento", "Por conquistar"}
     return [row for row in intelligence["zonas"] if row["nivel_prioridad_territorial"] in priority_names]
 
 
@@ -262,7 +266,7 @@ def opportunities(intelligence: dict[str, Any]) -> list[dict[str, Any]]:
 def alerts(intelligence: dict[str, Any]) -> list[dict[str, Any]]:
     alerts_list = []
     for row in intelligence["zonas"]:
-        if row["nivel_prioridad_territorial"] == "Zona crítica":
+        if row["nivel_prioridad_territorial"] == "Crítica":
             alerts_list.append({"nivel": "crítica", "zona": row["zona"], "mensaje": "Alta severidad y baja cobertura territorial.", "sustento": row["justificacion"]})
         elif row["ciudadanos_captados"] == 0:
             alerts_list.append({"nivel": "exploracion", "zona": row["zona"], "mensaje": "Zona sin ciudadanos captados autorizados.", "sustento": row["justificacion"]})

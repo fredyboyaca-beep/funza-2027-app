@@ -62,17 +62,28 @@ def _weekly_variation(rows: list[CiudadanoCaptado]) -> dict[str, int]:
 
 
 def _territory_classification(supports: dict[str, int], cobertura: float, interacciones: int, problematicas: int) -> str:
+    total = sum(supports.values())
+    if total == 0 and interacciones == 0:
+        return "Por conquistar"
+    if total >= 50 and supports["alto"] >= supports["medio"] + supports["indeciso"] + supports["bajo"]:
+        return "Consolidada operativamente"
+    if problematicas >= 2 and supports["bajo"] >= supports["alto"]:
+        return "Crítica"
+    if supports["indeciso"] > supports["alto"]:
+        return "Prioritaria"
+    if total >= 30 and supports["alto"] + supports["medio"] > supports["indeciso"] + supports["bajo"]:
+        return "En crecimiento"
     if cobertura >= 5 and supports["alto"] >= supports["medio"] + supports["indeciso"] + supports["bajo"]:
-        return "Zona consolidada"
+        return "Consolidada operativamente"
     if supports["alto"] + supports["medio"] > supports["indeciso"] + supports["bajo"] and cobertura >= 2:
-        return "Zona favorable"
-    if interacciones > 0 and cobertura < 3 and supports["indeciso"] >= supports["alto"]:
-        return "Zona en crecimiento"
+        return "En crecimiento"
     if problematicas >= 3 and supports["bajo"] >= supports["alto"]:
-        return "Zona crítica"
+        return "Crítica"
+    if interacciones > 0 and cobertura < 3 and supports["indeciso"] >= supports["alto"]:
+        return "En crecimiento"
     if cobertura < 1 or supports["indeciso"] > supports["alto"]:
-        return "Zona prioritaria"
-    return "Zona por conquistar"
+        return "Prioritaria"
+    return "Por conquistar"
 
 
 def _zone_indicator(
@@ -165,8 +176,8 @@ def build_citizen_operational_indicators(db: Session) -> dict[str, Any]:
             "problematicas": len(all_problems),
             "zonas_con_captacion": sum(1 for row in zones if row["ciudadanos_captados"] > 0),
             "zonas_sin_captacion": sum(1 for row in zones if row["ciudadanos_captados"] == 0),
-            "zonas_criticas": sum(1 for row in zones if row["clasificacion_territorial"] == "Zona crítica"),
-            "zonas_consolidadas": sum(1 for row in zones if row["clasificacion_territorial"] == "Zona consolidada"),
+            "zonas_criticas": sum(1 for row in zones if row["clasificacion_territorial"] == "Crítica"),
+            "zonas_consolidadas": sum(1 for row in zones if row["clasificacion_territorial"] == "Consolidada operativamente"),
             "cobertura_global": round((len(all_citizens) / total_population) * 100, 2) if total_population else 0,
             "proyeccion_votos": sum(row["proyeccion_votos"] for row in zones),
         },

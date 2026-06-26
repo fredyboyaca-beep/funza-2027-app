@@ -28,6 +28,7 @@ const statusLabels: Record<string, string> = {
   formulario_campana: 'Formulario de campaña',
   recorrido_territorial: 'Recorrido territorial',
   cargue_masivo: 'Carga masiva',
+  demo_funza_2027: 'Datos DEMO',
   'movimiento/partido pendiente de validar': 'Información oficial no encontrada',
   'movimiento/coalicion oficial pendiente de validar': 'En proceso de verificación documental',
 };
