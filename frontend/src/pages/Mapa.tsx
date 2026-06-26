@@ -1,50 +1,42 @@
 import { useEffect, useMemo, useState } from 'react';
-import { ChevronLeft, Filter, Layers, MapPin, Search, Target, TrendingUp, Users, X } from 'lucide-react';
+import { AlertTriangle, Crosshair, Layers, MapPin, Search, Target, Users, X } from 'lucide-react';
 import { api } from '../api/client';
 import { labelFor } from '../utils/presentation';
 
-type Candidato = {
+type GeoZone = {
+  id: number;
   nombre: string;
-  movimiento: string;
-  votos: number;
-  color: string;
+  tipo: 'Barrio' | 'Vereda';
+  poblacion_estimada: number;
+  lat?: number;
+  lng?: number;
 };
 
-type Sector = {
-  id: string;
+type TerritoryZone = {
   nombre: string;
-  tipo: string;
-  poblacion: number;
-  riesgo_abstencion: string;
-  ganador_2023: string;
-  color: string;
-  points: number[][];
-};
-
-type ProjectionCell = {
-  id: string;
-  nombre: string;
-  x: number;
-  y: number;
-  size: number;
-  potencial: number;
-  abstencion: number;
-  prioridad: 'Alta' | 'Media' | 'Baja';
-  foco: string;
-};
-
-type ZoneProjection = {
-  poblacion: number;
-  censoFactor: number;
-  participacion: number;
-  afinidad: number;
+  tipo: 'Barrio' | 'Vereda';
+  poblacion_estimada: number;
+  ciudadanos_captados: number;
+  apoyos_altos: number;
+  apoyos_medios: number;
+  apoyos_bajos: number;
+  indecisos: number;
+  no_responde: number;
+  interacciones: number;
+  problematicas: number;
+  problematica_principal: string;
   cobertura: number;
-  adversarioPrincipal: number;
-  otrosAdversarios: number;
+  potencial: number;
+  lider_responsable: string;
+  estado_estrategico: string;
+  puntaje_prioridad: number;
+  severidad_promedio: number;
+  recomendaciones: string[];
+  justificacion: string[];
 };
 
-type MapaData = {
-  municipio: {
+type MapInfo = {
+  municipio?: {
     nombre: string;
     departamento: string;
     codigo_dane: string;
@@ -53,358 +45,218 @@ type MapaData = {
     poblacion_fuente: string;
     nota_cartografia: string;
   };
-  eleccion_alcaldia_2023: {
+  eleccion_alcaldia_2023?: {
     fuente: string;
     total_votos: number;
     votos_validos: number;
-    votos_blanco: number;
-    votos_nulos: number;
-    no_marcados: number;
-    candidatos: Candidato[];
   };
-  sectores: Sector[];
 };
 
-type TerritoryZone = {
-  nombre: string;
-  tipo: string;
-  poblacion_estimada: number;
-  ciudadanos_captados: number;
-  apoyos_altos: number;
-  apoyos_medios: number;
-  apoyos_bajos: number;
-  no_responde?: number;
-  indecisos: number;
-  interacciones: number;
-  problematicas: number;
-  problematica_principal: string;
-  cobertura: number;
-  potencial: number;
-  requiere_visita: boolean;
-  nivel_prioridad_territorial?: string;
-  puntaje_prioridad?: number;
-  severidad_promedio?: number;
-  recomendaciones?: string[];
-  justificacion?: string[];
-};
-
-type GeoZone = {
-  id: number;
-  nombre: string;
-  tipo: string;
-  poblacion_estimada: number;
-  lat?: number;
-  lng?: number;
+type Projection = {
+  participacion: number;
+  afinidad: number;
+  adversarioPrincipal: number;
+  otrosAdversarios: number;
 };
 
 const fmt = new Intl.NumberFormat('es-CO');
 
-function pct(value: number, total: number) {
-  if (!total) return '0,0%';
-  return `${((value / total) * 100).toFixed(1).replace('.', ',')}%`;
+const DEFAULT_MAP_INFO: MapInfo = {
+  municipio: {
+    nombre: 'Funza',
+    departamento: 'Cundinamarca',
+    codigo_dane: '25286',
+    area_km2: 70,
+    poblacion_referencia: 82321,
+    poblacion_fuente: 'DANE - proyecciones municipales con base censal CNPV 2018',
+    nota_cartografia: 'Coordenadas operativas aproximadas. Preparado para reemplazo por GeoJSON oficial.',
+  },
+  eleccion_alcaldia_2023: {
+    fuente: 'Registraduría Nacional - resultados territoriales 2023',
+    total_votos: 46872,
+    votos_validos: 44494,
+  },
+};
+
+function zoneKey(zone: { tipo: string; nombre: string }) {
+  return `${zone.tipo}-${zone.nombre}`;
 }
 
-function pathFrom(points: number[][]) {
-  return points.map(([x, y], index) => `${index === 0 ? 'M' : 'L'} ${x} ${y}`).join(' ') + ' Z';
-}
-
-function boundsFrom(points: number[][]) {
-  const xs = points.map(([x]) => x);
-  const ys = points.map(([, y]) => y);
-  return { minX: Math.min(...xs), maxX: Math.max(...xs), minY: Math.min(...ys), maxY: Math.max(...ys) };
-}
-
-function zoneKey(zona: { tipo: string; nombre: string }) {
-  return `${zona.tipo}-${zona.nombre}`;
+function normalizeText(value: string) {
+  return value
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase();
 }
 
 function geoPoint(zone: GeoZone) {
   const lat = zone.lat ?? 4.716;
   const lng = zone.lng ?? -74.215;
-  const x = 235 + (lng + 74.215) * 5200;
-  const y = 214 - (lat - 4.716) * 5200;
+  const x = 360 + (lng + 74.215) * 6200;
+  const y = 310 - (lat - 4.716) * 6200;
   return {
-    x: Math.max(32, Math.min(438, x)),
-    y: Math.max(34, Math.min(398, y)),
+    x: Math.max(56, Math.min(664, x)),
+    y: Math.max(58, Math.min(542, y)),
   };
 }
 
-function territoryTile(index: number, total: number) {
-  const cols = 5;
-  const rows = Math.max(1, Math.ceil(total / cols));
-  const col = index % cols;
-  const row = Math.floor(index / cols);
-  const gap = 7;
-  const width = (410 - gap * (cols - 1)) / cols;
-  const height = Math.min(62, (330 - gap * (rows - 1)) / rows);
-  const x = 30 + col * (width + gap);
-  const y = 48 + row * (height + gap);
-  const skew = (index % 2) * 8;
-  const points = [
-    [x + skew, y],
-    [x + width, y + 5],
-    [x + width - skew, y + height],
-    [x, y + height - 6],
-  ];
+function territoryFromIntelligence(zone: any): TerritoryZone {
+  const leaders = zone.lideres || zone.lideres_asociados || [];
+  const leaderText = Array.isArray(leaders) && leaders.length ? leaders[0]?.lider || leaders[0] : 'Sin líder asignado';
   return {
-    path: pathFrom(points),
-    cx: x + width / 2,
-    cy: y + height / 2,
-    width,
-    height,
+    nombre: zone.zona || zone.nombre,
+    tipo: zone.tipo || 'Barrio',
+    poblacion_estimada: zone.poblacion_estimada || 0,
+    ciudadanos_captados: zone.ciudadanos_captados || 0,
+    apoyos_altos: zone.apoyos_altos || zone.apoyo_alto || 0,
+    apoyos_medios: zone.apoyos_medios || zone.apoyo_medio || 0,
+    apoyos_bajos: zone.rechazos_apoyos_bajos || zone.apoyos_bajos || zone.apoyo_bajo || 0,
+    indecisos: zone.indecisos || 0,
+    no_responde: zone.no_responde || 0,
+    interacciones: zone.interacciones || zone.interacciones_registradas || 0,
+    problematicas: zone.problematicas_total || zone.problematicas_reportadas || zone.problematicas || 0,
+    problematica_principal: zone.problematica_principal || 'Sin registros',
+    cobertura: zone.cobertura_territorial ?? zone.porcentaje_cobertura ?? zone.cobertura ?? 0,
+    potencial: zone.potencial_electoral_estimado || zone.potencial || 0,
+    lider_responsable: leaderText,
+    estado_estrategico: zone.nivel_prioridad_territorial || zone.clasificacion_territorial || 'Zona por conquistar',
+    puntaje_prioridad: zone.puntaje_prioridad || 0,
+    severidad_promedio: zone.severidad_promedio || 0,
+    recomendaciones: zone.recomendaciones || [],
+    justificacion: zone.justificacion || [],
   };
 }
 
-function focusedBlocks() {
-  return [
-    { id: 'norte', label: 'Norte', path: 'M 92 72 L 236 52 L 248 184 L 104 204 Z' },
-    { id: 'oriente', label: 'Oriente', path: 'M 248 64 L 382 96 L 352 228 L 248 184 Z' },
-    { id: 'sur', label: 'Sur', path: 'M 104 204 L 248 184 L 292 338 L 126 354 Z' },
-    { id: 'occidente', label: 'Occidente', path: 'M 248 184 L 352 228 L 292 338 Z' },
-  ];
+function territoryFromGeo(zone: GeoZone): TerritoryZone {
+  return {
+    nombre: zone.nombre,
+    tipo: zone.tipo,
+    poblacion_estimada: zone.poblacion_estimada || 0,
+    ciudadanos_captados: 0,
+    apoyos_altos: 0,
+    apoyos_medios: 0,
+    apoyos_bajos: 0,
+    indecisos: 0,
+    no_responde: 0,
+    interacciones: 0,
+    problematicas: 0,
+    problematica_principal: 'Sin registros',
+    cobertura: 0,
+    potencial: Math.round((zone.poblacion_estimada || 0) * 0.58),
+    lider_responsable: 'Sin líder asignado',
+    estado_estrategico: 'Zona por conquistar',
+    puntaje_prioridad: 0,
+    severidad_promedio: 0,
+    recomendaciones: ['Programar primer recorrido territorial y levantar necesidades comunitarias agregadas.'],
+    justificacion: ['Aún no hay registros captados en esta zona.'],
+  };
 }
 
-function projectionCellsFor(sector: Sector): ProjectionCell[] {
-  const bounds = boundsFrom(sector.points);
-  const width = bounds.maxX - bounds.minX;
-  const height = bounds.maxY - bounds.minY;
-  const size = Math.max(26, Math.min(width, height) / 3.4);
-  const labels = ['Norte', 'Centro', 'Sur', 'Oriente'];
-  const focos = ['Abstención', 'Movilización', 'Pedagogía electoral', 'Presencia territorial'];
-  return labels.map((label, index) => {
-    const col = index % 2;
-    const row = Math.floor(index / 2);
-    const potencial = Math.round((sector.poblacion * (0.18 + index * 0.035)) / 10) * 10;
-    const abstencion = Math.min(48, Math.round((sector.riesgo_abstencion === 'Alto' ? 34 : sector.riesgo_abstencion === 'Medio alto' ? 29 : 22) + index * 2.3));
-    return {
-      id: `${sector.id}-${label.toLowerCase()}`,
-      nombre: `${sector.nombre} ${label}`,
-      x: bounds.minX + width * (0.26 + col * 0.34) - size / 2,
-      y: bounds.minY + height * (0.32 + row * 0.34) - size / 2,
-      size,
-      potencial,
-      abstencion,
-      prioridad: abstencion >= 34 ? 'Alta' : abstencion >= 28 ? 'Media' : 'Baja',
-      foco: focos[index],
-    };
-  });
+function colorFor(zone: TerritoryZone, active: boolean) {
+  if (active) return '#0f172a';
+  if (zone.estado_estrategico === 'Zona crítica') return '#dc2626';
+  if (zone.estado_estrategico === 'Zona prioritaria') return '#e11d48';
+  if (zone.estado_estrategico === 'Zona en crecimiento') return '#f59e0b';
+  if (zone.estado_estrategico === 'Zona favorable') return '#0f766e';
+  if (zone.estado_estrategico === 'Zona consolidada') return '#16a34a';
+  if (zone.tipo === 'Vereda') return '#2563eb';
+  return '#64748b';
 }
 
-function defaultProjection(sector: Sector): ZoneProjection {
-  const censoEstimado = Math.round(sector.poblacion * 0.72);
-  const participacion = sector.riesgo_abstencion === 'Alto' ? 54 : sector.riesgo_abstencion === 'Medio alto' ? 58 : 62;
+function defaultProjection(zone: TerritoryZone): Projection {
+  const censoEstimado = Math.round(zone.poblacion_estimada * 0.72);
+  const participacion = zone.cobertura > 2 ? 60 : 54;
   const votantesEsperados = Math.round(censoEstimado * (participacion / 100));
   return {
-    poblacion: sector.poblacion,
-    censoFactor: 72,
     participacion,
-    afinidad: sector.ganador_2023 === 'Competitivo' ? 34 : 42,
-    cobertura: 28,
-    adversarioPrincipal: Math.round(votantesEsperados * (sector.ganador_2023 === 'Competitivo' ? 0.31 : 0.23)),
-    otrosAdversarios: Math.round(votantesEsperados * 0.12),
-  };
-}
-
-function defaultTerritoryProjection(zona: TerritoryZone): ZoneProjection {
-  const poblacion = zona.poblacion_estimada || 0;
-  const censoFactor = 72;
-  const participacion = zona.requiere_visita ? 54 : 60;
-  const votantesEsperados = Math.round(poblacion * (censoFactor / 100) * (participacion / 100));
-  return {
-    poblacion,
-    censoFactor,
-    participacion,
-    afinidad: zona.apoyos_altos > 0 ? 38 : 25,
-    cobertura: Math.min(100, Math.max(0, zona.cobertura || 0)),
+    afinidad: zone.apoyos_altos > 0 ? 38 : 24,
     adversarioPrincipal: Math.round(votantesEsperados * 0.28),
     otrosAdversarios: Math.round(votantesEsperados * 0.14),
   };
 }
 
-function calculateProjection(projection: ZoneProjection) {
-  const censoEstimado = Math.round(projection.poblacion * (projection.censoFactor / 100));
+function calculateProjection(zone: TerritoryZone, projection: Projection) {
+  const censoEstimado = Math.round(zone.poblacion_estimada * 0.72);
   const votantesEsperados = Math.round(censoEstimado * (projection.participacion / 100));
-  const votosProyectados = Math.round(votantesEsperados * (projection.afinidad / 100));
-  const personasContacto = Math.round(projection.poblacion * (projection.cobertura / 100));
-  const votosAdversarios = Math.round((projection.adversarioPrincipal || 0) + (projection.otrosAdversarios || 0));
-  const margenProyectado = votosProyectados - votosAdversarios;
-  return { censoEstimado, votantesEsperados, votosProyectados, personasContacto, votosAdversarios, margenProyectado };
-}
-
-function territoryFromIntelligence(zona: any): TerritoryZone {
+  const votosPropios = Math.round(votantesEsperados * (projection.afinidad / 100));
+  const votosAdversarios = projection.adversarioPrincipal + projection.otrosAdversarios;
   return {
-    nombre: zona.zona,
-    tipo: zona.tipo,
-    poblacion_estimada: zona.poblacion_estimada || 0,
-    ciudadanos_captados: zona.ciudadanos_captados || 0,
-    apoyos_altos: zona.apoyos_altos || 0,
-    apoyos_medios: zona.apoyos_medios || 0,
-    apoyos_bajos: zona.rechazos_apoyos_bajos || 0,
-    no_responde: zona.no_responde || 0,
-    indecisos: zona.indecisos || 0,
-    interacciones: zona.interacciones || 0,
-    problematicas: zona.problematicas_total || 0,
-    problematica_principal: zona.problematica_principal || 'Sin registros',
-    cobertura: zona.cobertura_territorial || 0,
-    potencial: zona.potencial_electoral_estimado || 0,
-    requiere_visita: ['Zona crítica', 'Zona prioritaria', 'Zona en crecimiento', 'Zona por conquistar'].includes(zona.nivel_prioridad_territorial),
-    nivel_prioridad_territorial: zona.nivel_prioridad_territorial,
-    puntaje_prioridad: zona.puntaje_prioridad,
-    severidad_promedio: zona.severidad_promedio,
-    recomendaciones: zona.recomendaciones || [],
-    justificacion: zona.justificacion || [],
+    censoEstimado,
+    votantesEsperados,
+    votosPropios,
+    votosAdversarios,
+    margen: votosPropios - votosAdversarios,
   };
-}
-
-function territoryFill(zona: TerritoryZone, active: boolean) {
-  if (active) return '#0f172a';
-  if (zona.nivel_prioridad_territorial === 'Zona crítica') return '#dc2626';
-  if (zona.nivel_prioridad_territorial === 'Zona prioritaria') return '#e11d48';
-  if (zona.nivel_prioridad_territorial === 'Zona en crecimiento') return '#f59e0b';
-  if (zona.nivel_prioridad_territorial === 'Zona favorable') return '#0f766e';
-  if (zona.nivel_prioridad_territorial === 'Zona consolidada') return '#16a34a';
-  if (zona.tipo === 'Vereda') return '#e83e98';
-  return zona.requiere_visita ? '#5b2d5d' : '#7b6680';
 }
 
 function StatCard({ label, value }: { label: string; value: string | number }) {
   return (
     <div className="rounded-lg bg-slate-50 p-4">
-      <p className="text-sm font-semibold text-slate-500">{label}</p>
+      <p className="text-xs font-black uppercase text-slate-400">{label}</p>
       <p className="mt-1 text-xl font-black text-slate-950">{value}</p>
     </div>
   );
 }
 
-function CandidateCard({ candidato, total, featured = false }: { candidato: Candidato; total: number; featured?: boolean }) {
-  const porcentaje = pct(candidato.votos, total);
-  return (
-    <div className="rounded-lg bg-slate-50 p-5">
-      <div className="flex items-center gap-5">
-        <div className="flex h-24 w-24 shrink-0 items-center justify-center rounded-lg bg-white text-3xl font-black text-slate-300">
-          {candidato.nombre.split(' ').slice(0, 2).map((x) => x[0]).join('')}
-        </div>
-        <div className="min-w-0 flex-1">
-          <p className="text-sm font-black uppercase tracking-wide text-slate-500">{candidato.movimiento}</p>
-          <div className="mt-1 flex items-start justify-between gap-4">
-            <h3 className={`${featured ? 'text-3xl' : 'text-2xl'} max-w-sm font-black leading-tight text-slate-950`}>
-              {candidato.nombre}
-            </h3>
-            <div className="text-right">
-              <p className={`${featured ? 'text-4xl' : 'text-3xl'} font-black text-slate-950`}>{porcentaje}</p>
-              <p className="text-sm font-bold text-slate-400">{fmt.format(candidato.votos)} votos</p>
-            </div>
-          </div>
-          <div className="mt-5 h-3 overflow-hidden rounded-full bg-slate-100">
-            <div className="h-full rounded-full" style={{ width: porcentaje, backgroundColor: candidato.color }} />
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-}
-
 export function Mapa() {
-  const [data, setData] = useState<MapaData | null>(null);
-  const [territoryZones, setTerritoryZones] = useState<TerritoryZone[]>([]);
+  const [mapInfo, setMapInfo] = useState<MapInfo>(DEFAULT_MAP_INFO);
   const [geoZones, setGeoZones] = useState<GeoZone[]>([]);
-  const [selectedId, setSelectedId] = useState('centro');
-  const [selectedCellId, setSelectedCellId] = useState('');
-  const [selectedTerritoryKey, setSelectedTerritoryKey] = useState('');
-  const [searchTerm, setSearchTerm] = useState('');
+  const [territoryZones, setTerritoryZones] = useState<TerritoryZone[]>([]);
+  const [selectedKey, setSelectedKey] = useState('');
+  const [search, setSearch] = useState('');
   const [typeFilter, setTypeFilter] = useState('Todos');
-  const [coverageFilter, setCoverageFilter] = useState('Todas');
-  const [hoveredId, setHoveredId] = useState<string | null>(null);
-  const [zoneProjections, setZoneProjections] = useState<Record<string, ZoneProjection>>({});
-  const [territoryProjections, setTerritoryProjections] = useState<Record<string, ZoneProjection>>({});
-  const [showTrace, setShowTrace] = useState(false);
+  const [statusFilter, setStatusFilter] = useState('Todos');
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+  const [traceOpen, setTraceOpen] = useState(false);
+  const [projectionEdits, setProjectionEdits] = useState<Record<string, Projection>>({});
 
   useEffect(() => {
-    Promise.all([
-      api.get('/mapa/inteligencia'),
-      api.get('/inteligencia/resumen-territorial'),
-      api.get('/barrios'),
-      api.get('/veredas'),
-    ]).then(([mapa, inteligencia, barrios, veredas]) => {
-      setData(mapa.data);
-      const zonas = (inteligencia.data.zonas || []).map(territoryFromIntelligence);
-      setTerritoryZones(zonas);
-      const barrioPoints = (barrios.data || []).map((item: any) => ({ ...item, tipo: 'Barrio' }));
-      const veredaPoints = (veredas.data || []).map((item: any) => ({ ...item, tipo: 'Vereda' }));
-      setGeoZones([...barrioPoints, ...veredaPoints]);
-      if (zonas[0]) setSelectedTerritoryKey(zoneKey(zonas[0]));
-      setTerritoryProjections((current) => {
-        const next = { ...current };
-        zonas.forEach((zona: TerritoryZone) => {
-          const key = zoneKey(zona);
-          if (!next[key]) next[key] = defaultTerritoryProjection(zona);
-        });
-        return next;
-      });
+    let mounted = true;
+    async function load() {
+      setLoading(true);
+      setError('');
+      const [mapResult, intelligenceResult, barriosResult, veredasResult] = await Promise.allSettled([
+        api.get('/mapa/inteligencia'),
+        api.get('/inteligencia/resumen-territorial'),
+        api.get('/barrios'),
+        api.get('/veredas'),
+      ]);
+      if (!mounted) return;
+
+      const barrios = barriosResult.status === 'fulfilled' ? barriosResult.value.data || [] : [];
+      const veredas = veredasResult.status === 'fulfilled' ? veredasResult.value.data || [] : [];
+      const geo: GeoZone[] = [
+        ...barrios.map((item: any) => ({ ...item, tipo: 'Barrio' as const })),
+        ...veredas.map((item: any) => ({ ...item, tipo: 'Vereda' as const })),
+      ];
+      const intelligenceZones: TerritoryZone[] =
+        intelligenceResult.status === 'fulfilled'
+          ? (intelligenceResult.value.data.zonas || []).map(territoryFromIntelligence)
+          : [];
+      const intelligenceByKey = new Map(intelligenceZones.map((zone: TerritoryZone) => [zoneKey(zone), zone]));
+      const merged: TerritoryZone[] = geo.map((zone) => intelligenceByKey.get(zoneKey(zone)) || territoryFromGeo(zone));
+
+      setMapInfo(mapResult.status === 'fulfilled' ? mapResult.value.data : DEFAULT_MAP_INFO);
+      setGeoZones(geo);
+      setTerritoryZones(merged);
+      setSelectedKey((current) => current || (merged[0] ? zoneKey(merged[0]) : ''));
+      setError(
+        [mapResult, intelligenceResult, barriosResult, veredasResult].some((result) => result.status === 'rejected')
+          ? 'Algunos datos no pudieron cargarse. Se muestra la base territorial disponible.'
+          : '',
+      );
+      setLoading(false);
+    }
+    load().catch(() => {
+      if (!mounted) return;
+      setError('No fue posible conectar con el backend. Intenta nuevamente en unos segundos.');
+      setLoading(false);
     });
+    return () => {
+      mounted = false;
+    };
   }, []);
-
-  useEffect(() => {
-    if (!data) return;
-    setZoneProjections((current) => {
-      const next = { ...current };
-      data.sectores.forEach((sector) => {
-        if (!next[sector.id]) next[sector.id] = defaultProjection(sector);
-      });
-      return next;
-    });
-  }, [data]);
-
-  const selected = useMemo(() => data?.sectores.find((x) => x.id === selectedId) || data?.sectores[0], [data, selectedId]);
-  const projectionCells = useMemo(() => (selected ? projectionCellsFor(selected) : []), [selected]);
-  const selectedCell = projectionCells.find((cell) => cell.id === selectedCellId) || projectionCells[0];
-  const candidates = data?.eleccion_alcaldia_2023.candidatos || [];
-  const winner = candidates[0];
-  const second = candidates[1];
-  const margin = winner && second ? winner.votos - second.votos : 0;
-  const selectedProjection = selected ? zoneProjections[selected.id] || defaultProjection(selected) : null;
-  const selectedProjectionResult = selectedProjection ? calculateProjection(selectedProjection) : null;
-  const totalProjection = useMemo(() => {
-    if (!territoryZones.length) return { censoEstimado: 0, votantesEsperados: 0, votosProyectados: 0, personasContacto: 0, votosAdversarios: 0, margenProyectado: 0 };
-    return territoryZones.reduce(
-      (acc, zona) => {
-        const key = zoneKey(zona);
-        const result = calculateProjection(territoryProjections[key] || defaultTerritoryProjection(zona));
-        return {
-          censoEstimado: acc.censoEstimado + result.censoEstimado,
-          votantesEsperados: acc.votantesEsperados + result.votantesEsperados,
-          votosProyectados: acc.votosProyectados + result.votosProyectados,
-          personasContacto: acc.personasContacto + result.personasContacto,
-          votosAdversarios: acc.votosAdversarios + result.votosAdversarios,
-          margenProyectado: acc.margenProyectado + result.margenProyectado,
-        };
-      },
-      { censoEstimado: 0, votantesEsperados: 0, votosProyectados: 0, personasContacto: 0, votosAdversarios: 0, margenProyectado: 0 },
-    );
-  }, [territoryZones, territoryProjections]);
-
-  const filteredTerritory = useMemo(() => {
-    return territoryZones.filter((zona) => {
-      const matchesSearch = !searchTerm || zona.nombre.toLowerCase().includes(searchTerm.toLowerCase());
-      const matchesType = typeFilter === 'Todos' || zona.tipo === typeFilter;
-      const matchesCoverage =
-        coverageFilter === 'Todas' ||
-        (coverageFilter === 'Baja cobertura' && zona.requiere_visita) ||
-        (coverageFilter === 'Con registros' && zona.ciudadanos_captados > 0) ||
-        (coverageFilter === 'Sin registros' && zona.ciudadanos_captados === 0);
-      return matchesSearch && matchesType && matchesCoverage;
-    });
-  }, [territoryZones, searchTerm, typeFilter, coverageFilter]);
-
-  const selectedTerritory = useMemo(() => {
-    return territoryZones.find((zona) => zoneKey(zona) === selectedTerritoryKey) || filteredTerritory[0] || territoryZones[0];
-  }, [territoryZones, filteredTerritory, selectedTerritoryKey]);
-  const selectedTerritoryProjection = selectedTerritory ? territoryProjections[zoneKey(selectedTerritory)] || defaultTerritoryProjection(selectedTerritory) : null;
-  const selectedTerritoryResult = selectedTerritoryProjection ? calculateProjection(selectedTerritoryProjection) : null;
-
-  const focusedTerritory = useMemo(() => {
-    return selectedTerritory;
-  }, [selectedTerritory]);
 
   const geoByKey = useMemo(() => {
     const map = new Map<string, GeoZone>();
@@ -412,436 +264,295 @@ export function Mapa() {
     return map;
   }, [geoZones]);
 
-  function updateSelectedProjection(key: keyof ZoneProjection, value: number) {
-    if (!selected) return;
-    setZoneProjections((current) => ({
-      ...current,
-      [selected.id]: {
-        ...(current[selected.id] || defaultProjection(selected)),
-        [key]: value,
-      },
-    }));
-  }
+  const filtered = useMemo(() => {
+    const needle = normalizeText(search);
+    return territoryZones.filter((zone) => {
+      const matchesSearch = !needle || normalizeText(zone.nombre).includes(needle);
+      const matchesType = typeFilter === 'Todos' || zone.tipo === typeFilter;
+      const matchesStatus =
+        statusFilter === 'Todos' ||
+        (statusFilter === 'Con registros' && zone.ciudadanos_captados > 0) ||
+        (statusFilter === 'Sin registros' && zone.ciudadanos_captados === 0) ||
+        zone.estado_estrategico === statusFilter;
+      return matchesSearch && matchesType && matchesStatus;
+    });
+  }, [territoryZones, search, typeFilter, statusFilter]);
 
-  function updateTerritoryProjection(key: keyof ZoneProjection, value: number) {
-    if (!selectedTerritory) return;
-    const currentKey = zoneKey(selectedTerritory);
-    setTerritoryProjections((current) => ({
+  const selected = useMemo(
+    () => territoryZones.find((zone) => zoneKey(zone) === selectedKey) || filtered[0] || territoryZones[0],
+    [filtered, selectedKey, territoryZones],
+  );
+
+  const projection = selected
+    ? projectionEdits[zoneKey(selected)] || defaultProjection(selected)
+    : null;
+  const projectionResult = selected && projection ? calculateProjection(selected, projection) : null;
+  const visibleKeys = new Set(filtered.map(zoneKey));
+  const selectedGeo = selected ? geoByKey.get(zoneKey(selected)) : null;
+
+  function updateProjection(key: keyof Projection, value: number) {
+    if (!selected) return;
+    const currentKey = zoneKey(selected);
+    setProjectionEdits((current) => ({
       ...current,
       [currentKey]: {
-        ...(current[currentKey] || defaultTerritoryProjection(selectedTerritory)),
+        ...(current[currentKey] || defaultProjection(selected)),
         [key]: value,
       },
     }));
   }
 
-  useEffect(() => {
-    if (projectionCells[0]) setSelectedCellId(projectionCells[0].id);
-  }, [selectedId, projectionCells.length]);
+  if (loading) {
+    return <p className="rounded-lg bg-white p-5 font-semibold text-slate-600">Cargando mapa territorial...</p>;
+  }
 
-  useEffect(() => {
-    if (!filteredTerritory.length) return;
-    const selectedStillVisible = filteredTerritory.some((zona) => zoneKey(zona) === selectedTerritoryKey);
-    if (!selectedStillVisible) setSelectedTerritoryKey(zoneKey(filteredTerritory[0]));
-  }, [filteredTerritory, selectedTerritoryKey]);
-
-  if (!data || !selected || !selectedCell || !selectedProjection || !selectedProjectionResult || !winner || !second || !selectedTerritory || !selectedTerritoryProjection || !selectedTerritoryResult) return <p>Cargando proyección territorial...</p>;
+  if (!territoryZones.length) {
+    return (
+      <section className="rounded-lg bg-white p-6">
+        <h2 className="text-2xl font-black">Mapa territorial</h2>
+        <p className="mt-2 font-semibold text-rose-700">No fue posible cargar barrios y veredas desde el backend.</p>
+      </section>
+    );
+  }
 
   return (
-    <section className="min-h-screen bg-slate-100 p-0 text-slate-950">
-      <div className="grid gap-8 xl:grid-cols-[minmax(420px,0.95fr)_minmax(520px,1fr)]">
-        <div className="rounded-lg bg-white p-8">
-          <div className="flex items-start justify-between gap-4">
-            <div>
-              <h2 className="text-3xl font-black">Proyección territorial</h2>
-              <p className="mt-2 max-w-md text-sm font-semibold text-slate-500">Selecciona un barrio o vereda para proyectar cobertura, participación y escenarios de competencia.</p>
-            </div>
-            <span className="rounded-full bg-slate-100 px-4 py-2 text-sm font-black text-slate-500">Análisis agregado</span>
-          </div>
+    <section className="space-y-6">
+      <div className="flex flex-wrap items-start justify-between gap-4">
+        <div>
+          <h2 className="text-3xl font-black">Mapa territorial inteligente</h2>
+          <p className="mt-1 max-w-4xl text-sm font-semibold text-slate-500">
+            Selecciona un barrio o vereda para ver cobertura, apoyos, problemáticas, proyección y recomendación de campaña.
+          </p>
+        </div>
+        <span className="rounded-full bg-slate-950 px-4 py-2 text-sm font-black text-white">45 unidades oficiales</span>
+      </div>
 
-          <div className="mt-8 rounded-lg bg-slate-50 px-4 py-3">
-            <div className="flex items-center gap-3 text-slate-400">
-              <Search size={20} />
+      {error && (
+        <div className="rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm font-bold text-amber-900">
+          {error}
+        </div>
+      )}
+
+      <div className="grid gap-6 xl:grid-cols-[minmax(520px,1fr)_430px]">
+        <div className="rounded-lg bg-white p-5 shadow-sm">
+          <div className="grid gap-3 lg:grid-cols-[1fr_170px_190px]">
+            <div className="flex items-center gap-3 rounded-lg bg-slate-50 px-4 py-3">
+              <Search size={18} className="text-slate-400" />
               <input
-                className="w-full bg-transparent font-semibold text-slate-700 outline-none placeholder:text-slate-400"
+                className="w-full bg-transparent text-sm font-semibold outline-none placeholder:text-slate-400"
                 placeholder="Buscar barrio o vereda..."
-                value={searchTerm}
-                onChange={(event) => setSearchTerm(event.target.value)}
+                value={search}
+                onChange={(event) => setSearch(event.target.value)}
               />
-              {searchTerm && (
-                <button onClick={() => setSearchTerm('')} className="rounded-full p-1 text-slate-400 hover:bg-white hover:text-slate-700">
+              {search && (
+                <button onClick={() => setSearch('')} className="rounded-full p-1 text-slate-400 hover:bg-white">
                   <X size={16} />
                 </button>
               )}
             </div>
+            <select className="input" value={typeFilter} onChange={(event) => setTypeFilter(event.target.value)}>
+              <option>Todos</option>
+              <option>Barrio</option>
+              <option>Vereda</option>
+            </select>
+            <select className="input" value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)}>
+              <option>Todos</option>
+              <option>Con registros</option>
+              <option>Sin registros</option>
+              <option>Zona crítica</option>
+              <option>Zona prioritaria</option>
+              <option>Zona en crecimiento</option>
+              <option>Zona consolidada</option>
+            </select>
           </div>
 
-          <div className="mt-3 grid gap-2 sm:grid-cols-2">
-            <label className="text-xs font-black uppercase text-slate-400">
-              Tipo
-              <select className="input mt-1" value={typeFilter} onChange={(event) => setTypeFilter(event.target.value)}>
-                <option>Todos</option>
-                <option>Barrio</option>
-                <option>Vereda</option>
-              </select>
-            </label>
-            <label className="text-xs font-black uppercase text-slate-400">
-              Cobertura
-              <select className="input mt-1" value={coverageFilter} onChange={(event) => setCoverageFilter(event.target.value)}>
-                <option>Todas</option>
-                <option>Baja cobertura</option>
-                <option>Con registros</option>
-                <option>Sin registros</option>
-              </select>
-            </label>
-          </div>
-
-          <div className="mt-3 flex items-center justify-between text-sm font-black text-slate-500">
-            <span className="flex items-center gap-2 text-blue-700"><MapPin size={16} /> {data.municipio.departamento} / {data.municipio.nombre}</span>
-            <span>Proyección territorial</span>
-          </div>
-
-          <div className="mt-6 grid gap-3 sm:grid-cols-2">
-            <StatCard label="Votos proyectados total" value={fmt.format(totalProjection.votosProyectados)} />
-            <StatCard label="Margen proyectado" value={fmt.format(totalProjection.margenProyectado)} />
-          </div>
-
-          <div className="mt-6 rounded-lg bg-slate-50 p-4">
-            <button className="mb-2 flex items-center gap-2 rounded-lg bg-white px-4 py-2 text-sm font-black text-slate-700">
-              <ChevronLeft size={18} /> Colombia
-            </button>
-            <svg viewBox="0 0 470 430" className="h-[430px] w-full">
-              <rect width="470" height="430" rx="18" fill="#f8fafc" />
-              {filteredTerritory.map((zona, index) => {
-                  const key = zoneKey(zona);
-                  const tile = territoryTile(index, filteredTerritory.length);
-                  const isSelectedTerritory = selectedTerritory && zoneKey(selectedTerritory) === key;
-                  const fill = territoryFill(zona, Boolean(isSelectedTerritory));
-                  return (
-                    <g
-                      key={`${key}-tile`}
-                      role="button"
-                      tabIndex={0}
-                      aria-label={`Seleccionar ${zona.tipo} ${zona.nombre}`}
-                      onClick={() => setSelectedTerritoryKey(key)}
-                      onKeyDown={(event) => {
-                        if (event.key === 'Enter' || event.key === ' ') setSelectedTerritoryKey(key);
-                      }}
-                      className="cursor-pointer"
-                    >
-                      <path
-                        d={tile.path}
-                        fill={fill}
-                        stroke={isSelectedTerritory ? '#0f172a' : '#ffffff'}
-                        strokeWidth={isSelectedTerritory ? 4 : 2}
-                        opacity={isSelectedTerritory ? 1 : 0.88}
-                      />
-                      {tile.width > 62 && (
-                        <text x={tile.cx} y={tile.cy} textAnchor="middle" fill="#ffffff" fontSize="10" fontWeight="800">
-                          {zona.nombre.length > 12 ? `${zona.nombre.slice(0, 11)}.` : zona.nombre}
-                        </text>
-                      )}
-                    </g>
-                  );
-                })}
-              {selectedTerritory && (
+          <div className="mt-5 overflow-hidden rounded-lg border border-slate-200 bg-slate-50">
+            <svg viewBox="0 0 720 600" className="h-[560px] w-full">
+              <rect width="720" height="600" fill="#f8fafc" />
+              <path d="M100 122 L328 54 L574 112 L650 294 L554 506 L310 548 L104 446 L58 250 Z" fill="#eef2f7" stroke="#d7dee8" strokeWidth="2" />
+              <path d="M88 318 C190 270 296 260 420 302 C506 332 588 330 652 288" fill="none" stroke="#cbd5e1" strokeWidth="10" strokeLinecap="round" opacity="0.55" />
+              {geoZones.map((geo) => {
+                const key = zoneKey(geo);
+                const zone = territoryZones.find((item) => zoneKey(item) === key) || territoryFromGeo(geo);
+                const point = geoPoint(geo);
+                const active = selected && zoneKey(selected) === key;
+                const visible = visibleKeys.has(key);
+                const radius = geo.tipo === 'Vereda' ? 13 : 9;
+                return (
+                  <g
+                    key={key}
+                    role="button"
+                    tabIndex={0}
+                    aria-label={`Seleccionar ${geo.tipo} ${geo.nombre}`}
+                    onClick={() => setSelectedKey(key)}
+                    onKeyDown={(event) => {
+                      if (event.key === 'Enter' || event.key === ' ') setSelectedKey(key);
+                    }}
+                    className="cursor-pointer"
+                    opacity={visible ? 1 : 0.16}
+                  >
+                    <circle
+                      cx={point.x}
+                      cy={point.y}
+                      r={active ? radius + 8 : radius + 3}
+                      fill={active ? '#0f172a' : '#ffffff'}
+                      stroke={colorFor(zone, active)}
+                      strokeWidth={active ? 5 : 3}
+                    />
+                    <circle cx={point.x} cy={point.y} r={radius} fill={colorFor(zone, active)} />
+                    {(active || zone.ciudadanos_captados > 0) && (
+                      <text x={point.x + 15} y={point.y - 10} fill="#0f172a" fontSize="12" fontWeight="900">
+                        {geo.nombre}
+                      </text>
+                    )}
+                  </g>
+                );
+              })}
+              {selected && selectedGeo && (
                 <g>
-                  <rect x="24" y="360" width="422" height="52" rx="14" fill="#ffffff" opacity="0.94" />
-                  <text x="42" y="384" fill="#0f172a" fontSize="17" fontWeight="900">
-                    {selectedTerritory.nombre}
+                  <rect x="26" y="500" width="668" height="72" rx="18" fill="#ffffff" opacity="0.96" />
+                  <text x="50" y="530" fill="#0f172a" fontSize="22" fontWeight="900">
+                    {selected.nombre}
                   </text>
-                  <text x="42" y="403" fill="#64748b" fontSize="12" fontWeight="700">
-                    {selectedTerritory.tipo} - {selectedTerritory.nivel_prioridad_territorial || 'Seguimiento'} - cobertura {selectedTerritory.cobertura}%
+                  <text x="50" y="554" fill="#64748b" fontSize="13" fontWeight="800">
+                    {selected.tipo} · {selected.estado_estrategico} · {selected.cobertura}% cobertura · {selected.ciudadanos_captados ? `${selected.ciudadanos_captados} captados` : 'Aún no hay registros captados en esta zona'}
                   </text>
                 </g>
               )}
             </svg>
           </div>
 
-          <div className="mt-6 flex flex-wrap gap-5 text-sm font-black">
-            <span className="flex items-center gap-2"><i className="h-3 w-3 rounded-full bg-[#5b2d5d]" /> Barrio/zona activa</span>
-            <span className="flex items-center gap-2"><i className="h-3 w-3 rounded bg-slate-950" /> Zona seleccionada</span>
-            <span className="flex items-center gap-2"><i className="h-3 w-3 rounded bg-white ring-1 ring-slate-400" /> Enfoque por filtro</span>
-            <span className="flex items-center gap-2"><i className="h-3 w-3 rounded-full bg-slate-950" /> Barrio</span>
-            <span className="flex items-center gap-2"><i className="h-3 w-3 rounded-full bg-rose-600" /> Vereda</span>
+          <div className="mt-4 flex flex-wrap gap-4 text-xs font-black text-slate-600">
+            <span className="flex items-center gap-2"><i className="h-3 w-3 rounded-full bg-[#dc2626]" /> Zona crítica</span>
+            <span className="flex items-center gap-2"><i className="h-3 w-3 rounded-full bg-[#e11d48]" /> Prioritaria</span>
+            <span className="flex items-center gap-2"><i className="h-3 w-3 rounded-full bg-[#f59e0b]" /> En crecimiento</span>
+            <span className="flex items-center gap-2"><i className="h-3 w-3 rounded-full bg-[#16a34a]" /> Consolidada</span>
+            <span className="flex items-center gap-2"><i className="h-3 w-3 rounded-full bg-[#2563eb]" /> Vereda</span>
           </div>
 
-          {selectedTerritory && (
-            <div className="mt-6 rounded-lg border-2 border-blue-100 bg-blue-50 p-4">
-              <div className="flex items-start justify-between gap-3">
-                <div>
-                  <p className="text-xs font-black uppercase tracking-wide text-blue-600">Barrio/vereda filtrado</p>
-                  <h3 className="mt-1 text-xl font-black text-slate-950">{selectedTerritory.nombre}</h3>
-                  <p className="text-sm font-bold text-slate-500">{selectedTerritory.tipo} · {labelFor(selectedTerritory.problematica_principal)}</p>
-                </div>
-                <span className="rounded-full bg-white px-3 py-1 text-xs font-black text-blue-700">
-                  {selectedTerritory.requiere_visita ? 'Priorizar' : 'Seguimiento'}
-                </span>
-              </div>
-              <div className="mt-4 grid gap-3 sm:grid-cols-3">
-                <StatCard label="Población" value={fmt.format(selectedTerritory.poblacion_estimada)} />
-                <StatCard label="Captados" value={fmt.format(selectedTerritory.ciudadanos_captados)} />
-                <StatCard label="Cobertura" value={`${selectedTerritory.cobertura}%`} />
-              </div>
+          <div className="mt-5 rounded-lg border border-slate-200 p-4">
+            <div className="mb-3 flex items-center gap-2 text-sm font-black uppercase text-slate-400">
+              <Layers size={16} /> Territorios filtrados
             </div>
-          )}
-
-          <div className="mt-6 rounded-lg border border-slate-200 p-4">
-            <div className="mb-3 flex items-center gap-2 text-sm font-black uppercase tracking-wide text-slate-400">
-              <Layers size={16} /> Barrios y zonas operativas
-            </div>
-            <div className="grid max-h-80 gap-2 overflow-y-auto pr-1 sm:grid-cols-2">
-              {filteredTerritory.map((zona) => {
-                const key = zoneKey(zona);
-                const active = selectedTerritory && zoneKey(selectedTerritory) === key;
+            <div className="grid max-h-72 gap-2 overflow-y-auto pr-1 md:grid-cols-2">
+              {filtered.map((zone) => {
+                const key = zoneKey(zone);
+                const active = selected && zoneKey(selected) === key;
                 return (
                   <button
                     key={key}
-                    onClick={() => setSelectedTerritoryKey(key)}
-                    className={`flex items-center justify-between rounded-lg border px-3 py-2 text-left text-sm font-bold transition ${
-                      active ? 'border-slate-950 bg-slate-950 text-white shadow-sm' : 'border-slate-200 bg-white text-slate-600 hover:border-slate-400'
-                    }`}
+                    onClick={() => setSelectedKey(key)}
+                    className={`rounded-lg border px-3 py-2 text-left transition ${active ? 'border-slate-950 bg-slate-950 text-white' : 'border-slate-200 bg-white hover:border-slate-400'}`}
                   >
-                    <span className="flex min-w-0 items-center gap-2">
-                      <i className="h-3 w-3 shrink-0 rounded-full" style={{ backgroundColor: zona.tipo === 'Barrio' ? '#0f172a' : '#e11d48' }} />
-                      <span className="truncate">{zona.nombre}</span>
-                    </span>
-                    <span className={active ? 'text-right text-slate-200' : 'text-right text-slate-400'}>
-                      {zona.tipo}
-                      <small className="block text-[11px]">{zona.cobertura}% cobertura</small>
-                      <small className="block text-[11px]">{zona.nivel_prioridad_territorial || 'Seguimiento'}</small>
-                    </span>
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="truncate text-sm font-black">{zone.nombre}</span>
+                      <span className={active ? 'text-xs font-bold text-slate-300' : 'text-xs font-bold text-slate-400'}>{zone.tipo}</span>
+                    </div>
+                    <p className={active ? 'mt-1 text-xs font-semibold text-slate-300' : 'mt-1 text-xs font-semibold text-slate-500'}>
+                      {zone.cobertura}% cobertura · {zone.estado_estrategico}
+                    </p>
                   </button>
                 );
               })}
             </div>
-            <p className="mt-3 text-xs font-bold text-slate-400">
-              Mostrando {fmt.format(filteredTerritory.length)} zonas según filtros. Al seleccionar una zona, el mapa se transforma en ese barrio o vereda para trabajar escenarios de proyección.
-            </p>
-          </div>
-
-          <div className="mt-6 rounded-lg border border-slate-200 p-4">
-            <div className="mb-3 flex items-center gap-2 text-sm font-black uppercase tracking-wide text-slate-400">
-              <Target size={16} /> Zonas de enfoque dentro de {selected.nombre}
-            </div>
-            <div className="grid gap-2">
-              {projectionCells.map((cell) => (
-                <button
-                  key={cell.id}
-                  onClick={() => setSelectedCellId(cell.id)}
-                  className={`flex items-center justify-between rounded-lg border px-3 py-2 text-left text-sm font-bold transition ${
-                    selectedCell.id === cell.id ? 'border-slate-950 bg-slate-950 text-white' : 'border-slate-200 bg-white text-slate-600 hover:border-slate-400'
-                  }`}
-                >
-                  <span>{cell.nombre}</span>
-                  <span className={selectedCell.id === cell.id ? 'text-slate-200' : 'text-slate-400'}>{cell.prioridad}</span>
-                </button>
-              ))}
-            </div>
           </div>
         </div>
 
-        <div className="rounded-lg bg-white p-8">
-          <div className="flex items-center justify-between gap-4">
-            <div>
-              <h2 className="text-3xl font-black">{data.municipio.nombre}</h2>
-              <p className="mt-1 text-sm font-bold text-slate-500">{data.municipio.departamento}</p>
-            </div>
-            <span className="rounded-full bg-blue-50 px-5 py-2 text-lg font-black text-blue-700">Proyección 2027</span>
-          </div>
-
-          <div className="mt-6 rounded-lg border-2 border-slate-950 bg-white p-5 shadow-sm transition" key={zoneKey(selectedTerritory)}>
-            <p className="text-sm font-black uppercase tracking-wide text-slate-400">Barrio/vereda seleccionado para proyectar</p>
-            <div className="mt-1 flex items-center gap-3">
-              <i className="h-4 w-4 rounded-full" style={{ backgroundColor: selectedTerritory.tipo === 'Barrio' ? '#0f172a' : '#e11d48' }} />
-              <h3 className="text-2xl font-black">{selectedTerritory.nombre}</h3>
-            </div>
-            <div className="mt-4 grid gap-3 text-sm font-bold text-slate-600 md:grid-cols-2">
-              <p>Tipo: <b className="text-slate-950">{selectedTerritory.tipo}</b></p>
-              <p>Población ref.: <b className="text-slate-950">{fmt.format(selectedTerritory.poblacion_estimada)}</b></p>
-              <p>Captados: <b className="text-slate-950">{fmt.format(selectedTerritory.ciudadanos_captados)}</b></p>
-              <p>Problemática: <b className="text-slate-950">{labelFor(selectedTerritory.problematica_principal)}</b></p>
-            </div>
-            <div className="mt-5 h-2 overflow-hidden rounded-full bg-slate-100">
-              <div
-                className="h-full rounded-full transition-all"
-                style={{
-                  width: `${Math.min(100, selectedTerritory.cobertura)}%`,
-                  backgroundColor: selectedTerritory.tipo === 'Barrio' ? '#0f172a' : '#e11d48',
-                }}
-              />
-            </div>
-            <p className="mt-2 text-xs font-semibold text-slate-400">
-              Cobertura registrada: {selectedTerritory.cobertura}% · Potencial operativo: {fmt.format(selectedTerritory.potencial)}
-            </p>
-          </div>
-
-          <div className="mt-6 rounded-lg border border-slate-200 p-5 shadow-sm">
-            <div className="flex items-center justify-between gap-4">
-              <div>
-                <p className="text-sm font-black uppercase tracking-wide text-slate-400">Escenario editable de campaña</p>
-                <h3 className="mt-1 text-2xl font-black">{selectedTerritory.nombre}</h3>
+        {selected && projection && projectionResult && (
+          <aside className="space-y-5">
+            <div className="rounded-lg bg-white p-5 shadow-sm">
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <p className="text-xs font-black uppercase text-slate-400">Territorio seleccionado</p>
+                  <h3 className="mt-1 text-2xl font-black">{selected.nombre}</h3>
+                  <p className="mt-1 text-sm font-bold text-slate-500">{selected.tipo}</p>
+                </div>
+                <span className="rounded-full px-3 py-1 text-xs font-black text-white" style={{ backgroundColor: colorFor(selected, false) }}>
+                  {selected.estado_estrategico}
+                </span>
               </div>
-              <Users className="text-slate-400" size={28} />
-            </div>
-            <div className="mt-5 grid gap-4 md:grid-cols-2">
-              <label className="text-sm font-bold text-slate-600">
-                Población estimada
-                <input
-                  className="input mt-1"
-                  type="number"
-                  min="0"
-                  value={selectedTerritoryProjection.poblacion}
-                  onChange={(event) => updateTerritoryProjection('poblacion', Number(event.target.value))}
-                />
-              </label>
-              <label className="text-sm font-bold text-slate-600">
-                Votos adversario principal
-                <input
-                  className="input mt-1"
-                  type="number"
-                  min="0"
-                  value={selectedTerritoryProjection.adversarioPrincipal}
-                  onChange={(event) => updateTerritoryProjection('adversarioPrincipal', Number(event.target.value))}
-                />
-              </label>
-              <label className="text-sm font-bold text-slate-600">
-                Otros adversarios
-                <input
-                  className="input mt-1"
-                  type="number"
-                  min="0"
-                  value={selectedTerritoryProjection.otrosAdversarios}
-                  onChange={(event) => updateTerritoryProjection('otrosAdversarios', Number(event.target.value))}
-                />
-              </label>
-              <label className="text-sm font-bold text-slate-600">
-                Factor censo electoral ({selectedTerritoryProjection.censoFactor}%)
-                <input
-                  className="mt-3 w-full"
-                  type="range"
-                  min="45"
-                  max="90"
-                  value={selectedTerritoryProjection.censoFactor}
-                  onChange={(event) => updateTerritoryProjection('censoFactor', Number(event.target.value))}
-                />
-              </label>
-              <label className="text-sm font-bold text-slate-600">
-                Participación esperada ({selectedTerritoryProjection.participacion}%)
-                <input
-                  className="mt-3 w-full"
-                  type="range"
-                  min="35"
-                  max="85"
-                  value={selectedTerritoryProjection.participacion}
-                  onChange={(event) => updateTerritoryProjection('participacion', Number(event.target.value))}
-                />
-              </label>
-              <label className="text-sm font-bold text-slate-600">
-                Afinidad / intención ({selectedTerritoryProjection.afinidad}%)
-                <input
-                  className="mt-3 w-full"
-                  type="range"
-                  min="5"
-                  max="70"
-                  value={selectedTerritoryProjection.afinidad}
-                  onChange={(event) => updateTerritoryProjection('afinidad', Number(event.target.value))}
-                />
-              </label>
-              <label className="text-sm font-bold text-slate-600 md:col-span-2">
-                Cobertura territorial planeada ({selectedTerritoryProjection.cobertura}%)
-                <input
-                  className="mt-3 w-full"
-                  type="range"
-                  min="0"
-                  max="100"
-                  value={selectedTerritoryProjection.cobertura}
-                  onChange={(event) => updateTerritoryProjection('cobertura', Number(event.target.value))}
-                />
-              </label>
-            </div>
-            <div className="mt-5 grid gap-4 md:grid-cols-4">
-              <StatCard label="Censo estimado" value={fmt.format(selectedTerritoryResult.censoEstimado)} />
-              <StatCard label="Votantes esperados" value={fmt.format(selectedTerritoryResult.votantesEsperados)} />
-              <StatCard label="Votos proyectados" value={fmt.format(selectedTerritoryResult.votosProyectados)} />
-              <StatCard label="Margen vs adversarios" value={fmt.format(selectedTerritoryResult.margenProyectado)} />
-              <StatCard label="Adversario principal" value={fmt.format(selectedTerritoryProjection.adversarioPrincipal)} />
-              <StatCard label="Otros adversarios" value={fmt.format(selectedTerritoryProjection.otrosAdversarios)} />
-              <StatCard label="Total adversarios" value={fmt.format(selectedTerritoryResult.votosAdversarios)} />
-              <StatCard label="Contactos meta" value={fmt.format(selectedTerritoryResult.personasContacto)} />
-            </div>
-          </div>
-
-          <div className="mt-6 rounded-lg border border-slate-200 p-5 shadow-sm">
-            <p className="text-sm font-black uppercase tracking-wide text-slate-400">Referencia histórica 2023</p>
-            <div className="mt-4">
-              <CandidateCard candidato={winner} total={data.eleccion_alcaldia_2023.total_votos} featured />
-            </div>
-
-            <div className="my-5 flex items-center gap-4">
-              <div className="h-px flex-1 bg-slate-200" />
-              <span className="rounded-full bg-slate-50 px-5 py-2 text-sm font-black uppercase tracking-wide text-slate-400">
-                Diferencia <b className="ml-2 text-slate-950">{fmt.format(margin)} votos</b>
-              </span>
-              <div className="h-px flex-1 bg-slate-200" />
-            </div>
-
-            <CandidateCard candidato={second} total={data.eleccion_alcaldia_2023.total_votos} />
-          </div>
-
-          <div className="mt-6 grid gap-4 md:grid-cols-2">
-            <StatCard label="Población referencia" value={fmt.format(data.municipio.poblacion_referencia)} />
-            <StatCard label="Area municipal" value={`${fmt.format(data.municipio.area_km2)} km2`} />
-            <StatCard label="Votos válidos 2023" value={fmt.format(data.eleccion_alcaldia_2023.votos_validos)} />
-            <StatCard label="Votos en blanco" value={fmt.format(data.eleccion_alcaldia_2023.votos_blanco)} />
-            <StatCard label="Votos nulos" value={fmt.format(data.eleccion_alcaldia_2023.votos_nulos)} />
-            <StatCard label="Total votos" value={fmt.format(data.eleccion_alcaldia_2023.total_votos)} />
-          </div>
-
-          <div className="mt-6 rounded-lg border border-slate-200 p-5 shadow-sm">
-            <div className="flex items-center justify-between gap-4">
-              <div>
-                <p className="text-sm font-black uppercase tracking-wide text-slate-400">Zona de enfoque</p>
-                <h3 className="mt-1 text-2xl font-black">{selectedCell.nombre}</h3>
+              <div className="mt-5 grid gap-3 sm:grid-cols-2">
+                <StatCard label="Población" value={fmt.format(selected.poblacion_estimada)} />
+                <StatCard label="Captados" value={fmt.format(selected.ciudadanos_captados)} />
+                <StatCard label="Cobertura" value={`${selected.cobertura}%`} />
+                <StatCard label="Potencial" value={fmt.format(selected.potencial)} />
               </div>
-              <span className={`rounded-full px-4 py-2 text-sm font-black ${
-                selectedCell.prioridad === 'Alta' ? 'bg-rose-50 text-rose-700' : selectedCell.prioridad === 'Media' ? 'bg-amber-50 text-amber-700' : 'bg-emerald-50 text-emerald-700'
-              }`}>
-                Prioridad {selectedCell.prioridad}
-              </span>
+              {!selected.ciudadanos_captados && (
+                <p className="mt-4 rounded-lg bg-amber-50 p-3 text-sm font-bold text-amber-900">
+                  Aún no hay registros captados en esta zona.
+                </p>
+              )}
             </div>
-            <div className="mt-5 grid gap-4 md:grid-cols-3">
-              <StatCard label="Potencial agregado" value={fmt.format(selectedCell.potencial)} />
-              <StatCard label="Abstención proyectada" value={`${selectedCell.abstencion}%`} />
-              <StatCard label="Foco táctico" value={selectedCell.foco} />
-            </div>
-            <div className="mt-5 rounded-lg bg-slate-50 p-4">
-              <div className="mb-2 flex items-center gap-2 text-sm font-black uppercase tracking-wide text-slate-400">
-                <TrendingUp size={16} /> Acciones sugeridas
-              </div>
-              <ul className="space-y-2 text-sm font-semibold text-slate-700">
-                <li>Priorizar recorridos territoriales y escucha comunitaria con datos agregados.</li>
-                <li>Contrastar esta zona con puestos de votación y resultados históricos al cargar fuentes oficiales.</li>
-                <li>Registrar problemáticas recurrentes para alimentar ranking y mensajes programáticos.</li>
-              </ul>
-            </div>
-          </div>
 
-          <div className="mt-6 rounded-lg bg-amber-50 p-4 text-sm font-semibold text-amber-900">
-            <p>La proyección combina datos agregados, resultados históricos y supuestos editables para orientar decisiones de campo.</p>
-            <button className="mt-3 rounded-full bg-white px-4 py-2 text-sm font-black text-amber-900" onClick={() => setShowTrace((current) => !current)}>
-              {showTrace ? 'Ocultar trazabilidad' : 'Ver trazabilidad'}
-            </button>
-            {showTrace && (
-              <div className="mt-3 rounded-lg bg-white p-3 text-sm text-slate-700">
-                <p>Código DANE: {data.municipio.codigo_dane}</p>
-                <p>Fuente poblacional: {data.municipio.poblacion_fuente}</p>
-                <p>Fuente electoral: {data.eleccion_alcaldia_2023.fuente}</p>
-                <p>Observación cartográfica: {data.municipio.nota_cartografia}</p>
+            <div className="rounded-lg bg-white p-5 shadow-sm">
+              <h3 className="mb-4 flex items-center gap-2 font-black"><Users size={18} /> Apoyos agregados</h3>
+              <div className="grid gap-3 sm:grid-cols-2">
+                <StatCard label="Alto" value={fmt.format(selected.apoyos_altos)} />
+                <StatCard label="Medio" value={fmt.format(selected.apoyos_medios)} />
+                <StatCard label="Bajo / rechazo" value={fmt.format(selected.apoyos_bajos)} />
+                <StatCard label="Indecisos" value={fmt.format(selected.indecisos)} />
               </div>
-            )}
-          </div>
-        </div>
+            </div>
+
+            <div className="rounded-lg bg-white p-5 shadow-sm">
+              <h3 className="mb-4 flex items-center gap-2 font-black"><AlertTriangle size={18} /> Lectura territorial</h3>
+              <div className="space-y-3 text-sm font-semibold text-slate-700">
+                <p><b>Problemática principal:</b> {labelFor(selected.problematica_principal)}</p>
+                <p><b>Reportes:</b> {fmt.format(selected.problematicas)} · <b>Interacciones:</b> {fmt.format(selected.interacciones)}</p>
+                <p><b>Líder responsable:</b> {selected.lider_responsable}</p>
+                <p><b>Severidad promedio:</b> {selected.severidad_promedio || 0}/5</p>
+              </div>
+              <div className="mt-4 rounded-lg bg-blue-50 p-4">
+                <p className="text-xs font-black uppercase text-blue-700">Recomendación IA</p>
+                <p className="mt-1 text-sm font-bold text-slate-800">
+                  {selected.recomendaciones[0] || 'Programar recorrido de diagnóstico, registrar hallazgos y actualizar captación territorial.'}
+                </p>
+              </div>
+            </div>
+
+            <div className="rounded-lg bg-white p-5 shadow-sm">
+              <h3 className="mb-4 flex items-center gap-2 font-black"><Target size={18} /> Proyección editable</h3>
+              <label className="block text-sm font-bold text-slate-600">
+                Participación esperada ({projection.participacion}%)
+                <input className="mt-2 w-full" type="range" min="35" max="85" value={projection.participacion} onChange={(event) => updateProjection('participacion', Number(event.target.value))} />
+              </label>
+              <label className="mt-4 block text-sm font-bold text-slate-600">
+                Afinidad estimada ({projection.afinidad}%)
+                <input className="mt-2 w-full" type="range" min="5" max="70" value={projection.afinidad} onChange={(event) => updateProjection('afinidad', Number(event.target.value))} />
+              </label>
+              <div className="mt-4 grid gap-3 sm:grid-cols-2">
+                <label className="text-sm font-bold text-slate-600">
+                  Votos adversario principal
+                  <input className="input mt-1" type="number" min="0" value={projection.adversarioPrincipal} onChange={(event) => updateProjection('adversarioPrincipal', Number(event.target.value))} />
+                </label>
+                <label className="text-sm font-bold text-slate-600">
+                  Otros adversarios
+                  <input className="input mt-1" type="number" min="0" value={projection.otrosAdversarios} onChange={(event) => updateProjection('otrosAdversarios', Number(event.target.value))} />
+                </label>
+              </div>
+              <div className="mt-4 grid gap-3 sm:grid-cols-2">
+                <StatCard label="Votantes esperados" value={fmt.format(projectionResult.votantesEsperados)} />
+                <StatCard label="Votos propios" value={fmt.format(projectionResult.votosPropios)} />
+                <StatCard label="Votos adversarios" value={fmt.format(projectionResult.votosAdversarios)} />
+                <StatCard label="Margen" value={fmt.format(projectionResult.margen)} />
+              </div>
+            </div>
+
+            <div className="rounded-lg bg-amber-50 p-4 text-sm font-semibold text-amber-900">
+              <button className="flex items-center gap-2 font-black" onClick={() => setTraceOpen((current) => !current)}>
+                <Crosshair size={16} /> {traceOpen ? 'Ocultar trazabilidad' : 'Ver trazabilidad'}
+              </button>
+              {traceOpen && (
+                <div className="mt-3 space-y-1">
+                  <p>Código DANE: {mapInfo.municipio?.codigo_dane}</p>
+                  <p>Fuente poblacional: {mapInfo.municipio?.poblacion_fuente}</p>
+                  <p>Fuente electoral: {mapInfo.eleccion_alcaldia_2023?.fuente}</p>
+                  <p>{mapInfo.municipio?.nota_cartografia}</p>
+                </div>
+              )}
+            </div>
+          </aside>
+        )}
       </div>
     </section>
   );

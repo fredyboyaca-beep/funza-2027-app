@@ -43,9 +43,15 @@ function Kpi({ title, value, icon: Icon }: { title: string; value: string | numb
 export function Territorio() {
   const [data, setData] = useState<TerritorioData | null>(null);
   const [selectedKey, setSelectedKey] = useState('');
+  const [error, setError] = useState('');
 
   useEffect(() => {
-    api.get('/territorio/resumen').then((r) => setData(r.data));
+    api.get('/territorio/resumen')
+      .then((r) => setData(r.data))
+      .catch(() => {
+        setData({ totales: {}, zonas: [] });
+        setError('No fue posible cargar el resumen territorial. Verifica la conexión con el backend.');
+      });
   }, []);
 
   if (!data) return <p>Cargando inteligencia territorial...</p>;
@@ -68,6 +74,8 @@ export function Territorio() {
           Selecciona un barrio o vereda para leer cobertura, potencial, apoyos, interacciones y prioridades sin exponer datos personales.
         </p>
       </div>
+
+      {error && <p className="rounded-lg bg-amber-50 p-4 text-sm font-bold text-amber-900">{error}</p>}
 
       <div className="grid gap-4 md:grid-cols-4">
         <Kpi title="Ciudadanos captados" value={fmt.format(data.totales.ciudadanos_captados || 0)} icon={Users} />

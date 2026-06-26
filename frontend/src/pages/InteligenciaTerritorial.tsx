@@ -88,9 +88,23 @@ function priorityBadge(priority: string) {
 export function InteligenciaTerritorial() {
   const [data, setData] = useState<InteligenciaData | null>(null);
   const [selectedZone, setSelectedZone] = useState('');
+  const [error, setError] = useState('');
 
   useEffect(() => {
-    api.get('/inteligencia/resumen-territorial').then((r) => setData(r.data));
+    api.get('/inteligencia/resumen-territorial')
+      .then((r) => setData(r.data))
+      .catch(() => {
+        setData({
+          fuente: 'Datos no disponibles',
+          restricciones: 'No fue posible conectar con el backend.',
+          totales: {},
+          distribucion_prioridad: {},
+          ranking_problematicas: [],
+          zonas: [],
+          recomendaciones: [],
+        });
+        setError('No fue posible cargar la inteligencia territorial. Revisa la conexión con el backend.');
+      });
   }, []);
 
   const selected = useMemo(() => {
@@ -98,7 +112,15 @@ export function InteligenciaTerritorial() {
     return data.zonas.find((zona) => zona.zona === selectedZone) || data.zonas[0];
   }, [data, selectedZone]);
 
-  if (!data || !selected) return <p>Cargando inteligencia territorial...</p>;
+  if (!data) return <p>Cargando inteligencia territorial...</p>;
+  if (!selected) {
+    return (
+      <section className="space-y-4">
+        <h2 className="text-3xl font-black">Inteligencia Territorial</h2>
+        <p className="rounded-lg bg-amber-50 p-4 font-semibold text-amber-900">{error || 'Aún no hay zonas disponibles para analizar.'}</p>
+      </section>
+    );
+  }
 
   const priorityData = Object.entries(data.distribucion_prioridad).map(([name, value]) => ({ name, value }));
   const topZones = data.zonas.slice(0, 10).map((zona) => ({
@@ -118,6 +140,8 @@ export function InteligenciaTerritorial() {
         </div>
         <span className="rounded-full bg-slate-950 px-4 py-2 text-sm font-black text-white">IA explicable</span>
       </div>
+
+      {error && <p className="rounded-lg bg-amber-50 p-4 text-sm font-bold text-amber-900">{error}</p>}
 
       <div className="grid gap-4 md:grid-cols-5">
         <Kpi title="Zonas analizadas" value={fmt.format(data.totales.zonas || 0)} icon={MapPinned} />

@@ -125,12 +125,18 @@ export function IA() {
   const [publicData, setPublicData] = useState<FuentesPublicas | null>(null);
   const [loading, setLoading] = useState(false);
   const [loadingSources, setLoadingSources] = useState(false);
+  const [error, setError] = useState('');
 
   useEffect(() => {
-    api.get('/inteligencia/resumen-territorial').then((r) => {
-      setData(r.data);
-      setZonaNombre(r.data.zonas?.[0]?.zona || '');
-    });
+    api.get('/inteligencia/resumen-territorial')
+      .then((r) => {
+        setData(r.data);
+        setZonaNombre(r.data.zonas?.[0]?.zona || '');
+      })
+      .catch(() => {
+        setData({ totales: {}, zonas: [], ranking_problematicas: [], recomendaciones: [] });
+        setError('No fue posible cargar la inteligencia territorial. Verifica la conexión con el backend.');
+      });
   }, []);
 
   const zona = useMemo(() => data?.zonas.find((item) => item.zona === zonaNombre) || data?.zonas[0], [data, zonaNombre]);
@@ -141,6 +147,8 @@ export function IA() {
     try {
       const response = await api.get('/ia/fuentes-publicas');
       setPublicData(response.data);
+    } catch {
+      setError('No fue posible consultar fuentes públicas en este momento. Puedes continuar con los datos internos agregados.');
     } finally {
       setLoadingSources(false);
     }
@@ -168,12 +176,22 @@ export function IA() {
         })) || [],
       });
       setBackendResult(response.data);
+    } catch {
+      setError('No fue posible generar el análisis desde el backend. Se mantiene la recomendación local basada en datos agregados.');
     } finally {
       setLoading(false);
     }
   }
 
-  if (!data || !zona || !output) return <p>Cargando asistente estratégico...</p>;
+  if (!data) return <p>Cargando asistente estratégico...</p>;
+  if (!zona || !output) {
+    return (
+      <section className="space-y-4">
+        <h2 className="text-3xl font-black">Asistente IA Estratégico</h2>
+        <p className="rounded-lg bg-amber-50 p-4 font-semibold text-amber-900">{error || 'Aún no hay zonas con datos agregados para analizar.'}</p>
+      </section>
+    );
+  }
 
   return (
     <section className="space-y-6">
@@ -186,6 +204,8 @@ export function IA() {
         </div>
         <span className="rounded-full bg-slate-950 px-4 py-2 text-sm font-black text-white">IA explicable</span>
       </div>
+
+      {error && <p className="rounded-lg bg-amber-50 p-4 text-sm font-bold text-amber-900">{error}</p>}
 
       <div className="grid gap-4 lg:grid-cols-[0.85fr_1.15fr]">
         <div className="card space-y-5">

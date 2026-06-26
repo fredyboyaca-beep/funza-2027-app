@@ -71,6 +71,7 @@ export function Electoral() {
   const [syncResult, setSyncResult] = useState<any>(null);
   const [loading, setLoading] = useState(false);
   const [showTrace, setShowTrace] = useState(false);
+  const [error, setError] = useState('');
 
   async function load() {
     const response = await api.get('/electoral/historico');
@@ -81,7 +82,19 @@ export function Electoral() {
   }
 
   useEffect(() => {
-    load();
+    load().catch(() => {
+      setData({
+        fuente: '',
+        fuente_2023: '',
+        fuentes_consulta: [],
+        restriccion: '',
+        elecciones: [],
+        tendencia: [],
+        partidos: [],
+        nota_partidos: 'No fue posible cargar la información electoral.',
+      });
+      setError('No fue posible cargar el histórico electoral. Verifica la conexión con el backend.');
+    });
   }, []);
 
   async function syncOfficial() {
@@ -90,6 +103,8 @@ export function Electoral() {
       const response = await api.post('/electoral/sincronizar-oficial');
       setSyncResult(response.data);
       await load();
+    } catch {
+      setError('No fue posible sincronizar la fuente oficial en este momento.');
     } finally {
       setLoading(false);
     }
@@ -99,8 +114,12 @@ export function Electoral() {
     if (!file) return;
     const fd = new FormData();
     fd.append('file', file);
-    await api.post('/resultados/cargar', fd);
-    await load();
+    try {
+      await api.post('/resultados/cargar', fd);
+      await load();
+    } catch {
+      setError('No fue posible cargar el archivo electoral.');
+    }
   }
 
   const selected = useMemo(() => data?.elecciones.find((item) => item.anio === selectedYear) || data?.elecciones[data.elecciones.length - 1], [data, selectedYear]);
@@ -122,6 +141,8 @@ export function Electoral() {
           {loading ? 'Sincronizando...' : 'Sincronizar fuente oficial'}
         </button>
       </div>
+
+      {error && <p className="rounded-lg bg-amber-50 p-4 text-sm font-bold text-amber-900">{error}</p>}
 
       {syncResult && (
         <div className="rounded-lg border border-emerald-200 bg-emerald-50 p-4 text-sm font-semibold text-emerald-900">

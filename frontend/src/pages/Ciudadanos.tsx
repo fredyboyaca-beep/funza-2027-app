@@ -78,7 +78,7 @@ export function Ciudadanos() {
   };
 
   useEffect(() => {
-    load();
+    load().catch(() => setError('No fue posible cargar ciudadanos e indicadores. Verifica la conexión con el backend.'));
   }, []);
 
   function setField(key: string, value: string | boolean) {

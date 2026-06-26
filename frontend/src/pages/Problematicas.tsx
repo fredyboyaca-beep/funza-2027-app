@@ -63,7 +63,7 @@ export function Problematicas() {
   }
 
   useEffect(() => {
-    load();
+    load().catch(() => setError('No fue posible cargar los registros de campo. Verifica la conexión con el backend.'));
   }, []);
 
   const territoryNames = useMemo(() => {

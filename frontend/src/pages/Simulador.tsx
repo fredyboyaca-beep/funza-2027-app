@@ -50,6 +50,7 @@ export function Simulador() {
   const [insumos, setInsumos] = useState<any>(null);
   const [inteligencia, setInteligencia] = useState<any>(null);
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
 
   useEffect(() => {
     Promise.all([
@@ -58,7 +59,7 @@ export function Simulador() {
     ]).then(([citizensResponse, intelligenceResponse]) => {
       setInsumos(citizensResponse.data);
       setInteligencia(intelligenceResponse.data);
-    });
+    }).catch(() => setError('No fue posible cargar insumos territoriales. El simulador seguirá funcionando con supuestos manuales.'));
   }, []);
 
   const chartData = useMemo(() => {
@@ -75,6 +76,8 @@ export function Simulador() {
     try {
       const response = await api.post('/simulador', form);
       setRes(response.data);
+    } catch {
+      setError('No fue posible guardar la simulación en el backend. Revisa la conexión e intenta nuevamente.');
     } finally {
       setLoading(false);
     }
@@ -96,6 +99,8 @@ export function Simulador() {
         </div>
         <span className="rounded-full bg-slate-950 px-4 py-2 text-sm font-black text-white">Escenarios 2027</span>
       </div>
+
+      {error && <p className="rounded-lg bg-amber-50 p-4 text-sm font-bold text-amber-900">{error}</p>}
 
       <div className="grid gap-6 xl:grid-cols-[0.8fr_1.2fr]">
         <div className="card space-y-5">
