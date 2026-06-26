@@ -93,17 +93,19 @@ def _priority(row: dict[str, Any]) -> tuple[str, int, list[str]]:
         reasons.append("potencial electoral agregado alto")
 
     if row["ciudadanos_captados"] == 0 and row["interacciones"] == 0:
-        classification = "Zona por explorar"
+        classification = "Zona por conquistar"
     elif row["severidad_promedio"] >= 4 and row["cobertura_territorial"] < 3:
-        classification = "Zona critica"
+        classification = "Zona crítica"
     elif row["cobertura_territorial"] >= 5 and row["apoyos_altos"] >= (row["apoyos_medios"] + row["indecisos"] + row["rechazos_apoyos_bajos"]):
         classification = "Zona consolidada"
     elif score >= 55:
-        classification = "Alta prioridad"
+        classification = "Zona prioritaria"
     elif score >= 30:
-        classification = "Prioridad media"
+        classification = "Zona en crecimiento"
+    elif row["apoyos_altos"] + row["apoyos_medios"] > row["indecisos"] + row["rechazos_apoyos_bajos"]:
+        classification = "Zona favorable"
     else:
-        classification = "Baja prioridad"
+        classification = "Zona por conquistar"
 
     return classification, score, reasons
 
@@ -234,7 +236,7 @@ def calculate_territorial_intelligence(db: Session) -> dict[str, Any]:
 
 
 def priority_zones(intelligence: dict[str, Any]) -> list[dict[str, Any]]:
-    priority_names = {"Zona critica", "Alta prioridad", "Prioridad media", "Zona por explorar"}
+    priority_names = {"Zona crítica", "Zona prioritaria", "Zona en crecimiento", "Zona por conquistar"}
     return [row for row in intelligence["zonas"] if row["nivel_prioridad_territorial"] in priority_names]
 
 
@@ -260,8 +262,8 @@ def opportunities(intelligence: dict[str, Any]) -> list[dict[str, Any]]:
 def alerts(intelligence: dict[str, Any]) -> list[dict[str, Any]]:
     alerts_list = []
     for row in intelligence["zonas"]:
-        if row["nivel_prioridad_territorial"] == "Zona critica":
-            alerts_list.append({"nivel": "critica", "zona": row["zona"], "mensaje": "Alta severidad y baja cobertura territorial.", "sustento": row["justificacion"]})
+        if row["nivel_prioridad_territorial"] == "Zona crítica":
+            alerts_list.append({"nivel": "crítica", "zona": row["zona"], "mensaje": "Alta severidad y baja cobertura territorial.", "sustento": row["justificacion"]})
         elif row["ciudadanos_captados"] == 0:
             alerts_list.append({"nivel": "exploracion", "zona": row["zona"], "mensaje": "Zona sin ciudadanos captados autorizados.", "sustento": row["justificacion"]})
         elif row["rechazos_apoyos_bajos"] > row["apoyos_altos"]:

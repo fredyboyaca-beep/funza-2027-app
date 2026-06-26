@@ -73,6 +73,7 @@ type TerritoryZone = {
   apoyos_altos: number;
   apoyos_medios: number;
   apoyos_bajos: number;
+  no_responde?: number;
   indecisos: number;
   interacciones: number;
   problematicas: number;
@@ -80,6 +81,11 @@ type TerritoryZone = {
   cobertura: number;
   potencial: number;
   requiere_visita: boolean;
+  nivel_prioridad_territorial?: string;
+  puntaje_prioridad?: number;
+  severidad_promedio?: number;
+  recomendaciones?: string[];
+  justificacion?: string[];
 };
 
 type GeoZone = {
@@ -225,6 +231,42 @@ function calculateProjection(projection: ZoneProjection) {
   return { censoEstimado, votantesEsperados, votosProyectados, personasContacto, votosAdversarios, margenProyectado };
 }
 
+function territoryFromIntelligence(zona: any): TerritoryZone {
+  return {
+    nombre: zona.zona,
+    tipo: zona.tipo,
+    poblacion_estimada: zona.poblacion_estimada || 0,
+    ciudadanos_captados: zona.ciudadanos_captados || 0,
+    apoyos_altos: zona.apoyos_altos || 0,
+    apoyos_medios: zona.apoyos_medios || 0,
+    apoyos_bajos: zona.rechazos_apoyos_bajos || 0,
+    no_responde: zona.no_responde || 0,
+    indecisos: zona.indecisos || 0,
+    interacciones: zona.interacciones || 0,
+    problematicas: zona.problematicas_total || 0,
+    problematica_principal: zona.problematica_principal || 'Sin registros',
+    cobertura: zona.cobertura_territorial || 0,
+    potencial: zona.potencial_electoral_estimado || 0,
+    requiere_visita: ['Zona crítica', 'Zona prioritaria', 'Zona en crecimiento', 'Zona por conquistar'].includes(zona.nivel_prioridad_territorial),
+    nivel_prioridad_territorial: zona.nivel_prioridad_territorial,
+    puntaje_prioridad: zona.puntaje_prioridad,
+    severidad_promedio: zona.severidad_promedio,
+    recomendaciones: zona.recomendaciones || [],
+    justificacion: zona.justificacion || [],
+  };
+}
+
+function territoryFill(zona: TerritoryZone, active: boolean) {
+  if (active) return '#0f172a';
+  if (zona.nivel_prioridad_territorial === 'Zona crítica') return '#dc2626';
+  if (zona.nivel_prioridad_territorial === 'Zona prioritaria') return '#e11d48';
+  if (zona.nivel_prioridad_territorial === 'Zona en crecimiento') return '#f59e0b';
+  if (zona.nivel_prioridad_territorial === 'Zona favorable') return '#0f766e';
+  if (zona.nivel_prioridad_territorial === 'Zona consolidada') return '#16a34a';
+  if (zona.tipo === 'Vereda') return '#e83e98';
+  return zona.requiere_visita ? '#5b2d5d' : '#7b6680';
+}
+
 function StatCard({ label, value }: { label: string; value: string | number }) {
   return (
     <div className="rounded-lg bg-slate-50 p-4">
@@ -280,19 +322,20 @@ export function Mapa() {
   useEffect(() => {
     Promise.all([
       api.get('/mapa/inteligencia'),
-      api.get('/territorio/resumen'),
+      api.get('/inteligencia/resumen-territorial'),
       api.get('/barrios'),
       api.get('/veredas'),
-    ]).then(([mapa, territorio, barrios, veredas]) => {
+    ]).then(([mapa, inteligencia, barrios, veredas]) => {
       setData(mapa.data);
-      setTerritoryZones(territorio.data.zonas || []);
+      const zonas = (inteligencia.data.zonas || []).map(territoryFromIntelligence);
+      setTerritoryZones(zonas);
       const barrioPoints = (barrios.data || []).map((item: any) => ({ ...item, tipo: 'Barrio' }));
       const veredaPoints = (veredas.data || []).map((item: any) => ({ ...item, tipo: 'Vereda' }));
       setGeoZones([...barrioPoints, ...veredaPoints]);
-      if (territorio.data.zonas?.[0]) setSelectedTerritoryKey(zoneKey(territorio.data.zonas[0]));
+      if (zonas[0]) setSelectedTerritoryKey(zoneKey(zonas[0]));
       setTerritoryProjections((current) => {
         const next = { ...current };
-        (territorio.data.zonas || []).forEach((zona: TerritoryZone) => {
+        zonas.forEach((zona: TerritoryZone) => {
           const key = zoneKey(zona);
           if (!next[key]) next[key] = defaultTerritoryProjection(zona);
         });
@@ -322,10 +365,11 @@ export function Mapa() {
   const selectedProjection = selected ? zoneProjections[selected.id] || defaultProjection(selected) : null;
   const selectedProjectionResult = selectedProjection ? calculateProjection(selectedProjection) : null;
   const totalProjection = useMemo(() => {
-    if (!data) return { censoEstimado: 0, votantesEsperados: 0, votosProyectados: 0, personasContacto: 0, votosAdversarios: 0, margenProyectado: 0 };
-    return data.sectores.reduce(
-      (acc, sector) => {
-        const result = calculateProjection(zoneProjections[sector.id] || defaultProjection(sector));
+    if (!territoryZones.length) return { censoEstimado: 0, votantesEsperados: 0, votosProyectados: 0, personasContacto: 0, votosAdversarios: 0, margenProyectado: 0 };
+    return territoryZones.reduce(
+      (acc, zona) => {
+        const key = zoneKey(zona);
+        const result = calculateProjection(territoryProjections[key] || defaultTerritoryProjection(zona));
         return {
           censoEstimado: acc.censoEstimado + result.censoEstimado,
           votantesEsperados: acc.votantesEsperados + result.votantesEsperados,
@@ -337,7 +381,7 @@ export function Mapa() {
       },
       { censoEstimado: 0, votantesEsperados: 0, votosProyectados: 0, personasContacto: 0, votosAdversarios: 0, margenProyectado: 0 },
     );
-  }, [data, zoneProjections]);
+  }, [territoryZones, territoryProjections]);
 
   const filteredTerritory = useMemo(() => {
     return territoryZones.filter((zona) => {
@@ -468,42 +512,11 @@ export function Mapa() {
             </button>
             <svg viewBox="0 0 470 430" className="h-[430px] w-full">
               <rect width="470" height="430" rx="18" fill="#f8fafc" />
-              {focusedTerritory ? (
-                <g>
-                  <path d="M 86 64 L 236 42 L 386 92 L 354 338 L 126 366 L 72 216 Z" fill="#e2e8f0" stroke="#cbd5e1" strokeWidth="2" />
-                  {focusedBlocks().map((block, index) => (
-                    <g
-                      key={block.id}
-                      role="button"
-                      tabIndex={0}
-                      onClick={() => setSelectedCellId(`${selected.id}-${block.id}`)}
-                      className="cursor-pointer"
-                    >
-                      <path
-                        d={block.path}
-                        fill={index % 2 === 0 ? '#5b2d5d' : '#e83e98'}
-                        opacity={focusedTerritory.requiere_visita ? 0.9 : 0.72}
-                        stroke="#ffffff"
-                        strokeWidth="4"
-                      />
-                      <text x={index === 1 ? 300 : index === 3 ? 300 : 160} y={index < 2 ? 132 : 280} textAnchor="middle" fill="#ffffff" fontSize="13" fontWeight="800">
-                        {block.label}
-                      </text>
-                    </g>
-                  ))}
-                  <text x="235" y="398" textAnchor="middle" fill="#0f172a" fontSize="20" fontWeight="900">
-                    {focusedTerritory.nombre}
-                  </text>
-                  <text x="235" y="418" textAnchor="middle" fill="#64748b" fontSize="12" fontWeight="700">
-                    {focusedTerritory.tipo} - cobertura {focusedTerritory.cobertura}% - potencial {fmt.format(focusedTerritory.potencial)}
-                  </text>
-                </g>
-              ) : (
-                filteredTerritory.map((zona, index) => {
+              {filteredTerritory.map((zona, index) => {
                   const key = zoneKey(zona);
                   const tile = territoryTile(index, filteredTerritory.length);
                   const isSelectedTerritory = selectedTerritory && zoneKey(selectedTerritory) === key;
-                  const fill = zona.tipo === 'Barrio' ? (zona.requiere_visita ? '#5b2d5d' : '#7b6680') : (zona.requiere_visita ? '#e83e98' : '#b7a5bc');
+                  const fill = territoryFill(zona, Boolean(isSelectedTerritory));
                   return (
                     <g
                       key={`${key}-tile`}
@@ -521,7 +534,7 @@ export function Mapa() {
                         fill={fill}
                         stroke={isSelectedTerritory ? '#0f172a' : '#ffffff'}
                         strokeWidth={isSelectedTerritory ? 4 : 2}
-                        opacity={isSelectedTerritory ? 1 : 0.86}
+                        opacity={isSelectedTerritory ? 1 : 0.88}
                       />
                       {tile.width > 62 && (
                         <text x={tile.cx} y={tile.cy} textAnchor="middle" fill="#ffffff" fontSize="10" fontWeight="800">
@@ -530,7 +543,17 @@ export function Mapa() {
                       )}
                     </g>
                   );
-                })
+                })}
+              {selectedTerritory && (
+                <g>
+                  <rect x="24" y="360" width="422" height="52" rx="14" fill="#ffffff" opacity="0.94" />
+                  <text x="42" y="384" fill="#0f172a" fontSize="17" fontWeight="900">
+                    {selectedTerritory.nombre}
+                  </text>
+                  <text x="42" y="403" fill="#64748b" fontSize="12" fontWeight="700">
+                    {selectedTerritory.tipo} - {selectedTerritory.nivel_prioridad_territorial || 'Seguimiento'} - cobertura {selectedTerritory.cobertura}%
+                  </text>
+                </g>
               )}
             </svg>
           </div>
@@ -567,8 +590,8 @@ export function Mapa() {
             <div className="mb-3 flex items-center gap-2 text-sm font-black uppercase tracking-wide text-slate-400">
               <Layers size={16} /> Barrios y zonas operativas
             </div>
-            <div className="grid gap-2 sm:grid-cols-2">
-              {filteredTerritory.slice(0, 12).map((zona) => {
+            <div className="grid max-h-80 gap-2 overflow-y-auto pr-1 sm:grid-cols-2">
+              {filteredTerritory.map((zona) => {
                 const key = zoneKey(zona);
                 const active = selectedTerritory && zoneKey(selectedTerritory) === key;
                 return (
@@ -586,6 +609,7 @@ export function Mapa() {
                     <span className={active ? 'text-right text-slate-200' : 'text-right text-slate-400'}>
                       {zona.tipo}
                       <small className="block text-[11px]">{zona.cobertura}% cobertura</small>
+                      <small className="block text-[11px]">{zona.nivel_prioridad_territorial || 'Seguimiento'}</small>
                     </span>
                   </button>
                 );

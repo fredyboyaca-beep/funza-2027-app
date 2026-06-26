@@ -19,7 +19,17 @@ from app.services.territorial_intelligence import calculate_territorial_intellig
 
 Base.metadata.create_all(bind=engine)
 app = FastAPI(title=settings.PROJECT_NAME, version="1.0.0")
-app.add_middleware(CORSMiddleware, allow_origins=[o.strip() for o in settings.CORS_ORIGINS.split(',')], allow_credentials=True, allow_methods=["*"], allow_headers=["*"])
+cors_origins = {
+    o.strip()
+    for o in settings.CORS_ORIGINS.split(",")
+    if o.strip()
+}
+cors_origins.update({
+    "http://localhost:5173",
+    "http://127.0.0.1:5173",
+    "https://funza-2027-app.vercel.app",
+})
+app.add_middleware(CORSMiddleware, allow_origins=sorted(cors_origins), allow_credentials=True, allow_methods=["*"], allow_headers=["*"])
 
 OFFICIAL_BARRIOS = [
     {"nombre": "Siete Trojes", "poblacion_estimada": 2300, "estrato_promedio": 3.1, "lat": 4.711, "lng": -74.201},
