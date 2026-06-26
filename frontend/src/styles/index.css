@@ -1,0 +1,3 @@
+@import 'leaflet/dist/leaflet.css';
+@tailwind base; @tailwind components; @tailwind utilities;
+body{margin:0;font-family:Inter,system-ui,Arial;background:#f6f7fb}.dark body{background:#0f172a;color:#e2e8f0}.card{@apply bg-white dark:bg-slate-800 rounded-2xl shadow p-5 border border-slate-100 dark:border-slate-700}.btn{@apply px-4 py-2 rounded-xl bg-slate-900 text-white dark:bg-white dark:text-slate-900}.input{@apply border rounded-xl px-3 py-2 w-full dark:bg-slate-900 dark:border-slate-700}

@@ -1,0 +1,1 @@
+export function KpiCard({title,value,subtitle}:{title:string,value:any,subtitle?:string}){return <div className="card"><p className="text-sm text-slate-500 dark:text-slate-400">{title}</p><h3 className="text-3xl font-bold mt-2">{value}</h3>{subtitle&&<p className="text-xs mt-2 text-slate-500">{subtitle}</p>}</div>}

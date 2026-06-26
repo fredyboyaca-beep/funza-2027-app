@@ -1,0 +1,37 @@
+services:
+  db:
+    image: postgres:16
+    container_name: funza2027_db
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-funza2027}
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./database/init.sql:/docker-entrypoint-initdb.d/init.sql
+  backend:
+    build: ./backend
+    container_name: funza2027_backend
+    env_file: ./.env
+    ports:
+      - "${BACKEND_PORT:-8521}:8521"
+    depends_on:
+      - db
+    volumes:
+      - ./backend:/app
+  frontend:
+    build: ./frontend
+    container_name: funza2027_frontend
+    environment:
+      VITE_API_URL: ${VITE_API_URL:-http://localhost:8521}
+    ports:
+      - "${FRONTEND_PORT:-5173}:5173"
+    depends_on:
+      - backend
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+volumes:
+  postgres_data:
