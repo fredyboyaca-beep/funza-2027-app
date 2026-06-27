@@ -230,7 +230,7 @@ export function IA() {
           <label className="block text-sm font-black text-slate-500">
             Zona a analizar
             <select className="input mt-2" value={zonaNombre} onChange={(event) => setZonaNombre(event.target.value)}>
-              {data.zonas.slice(0, 20).map((item) => (
+              {data.zonas.map((item) => (
                 <option key={`${item.tipo}-${item.zona}`} value={item.zona}>
                   {item.zona} - {item.nivel_prioridad_territorial}
                 </option>
